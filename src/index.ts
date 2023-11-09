@@ -1,55 +1,77 @@
 import fs from "fs/promises";
 import path from "path";
 
+const partition_name_from_partition_index = (partition_index: PartitionIndex) => {
+    return Object.entries(partition_index).map((partition_entry: [any, any]) => {
+        return `${partition_entry[0]}_${partition_entry[1]}`;
+    }).join('_');
+}
+
+type PartitionIndex = { [key: string]: any };
+
 type Partition = {
     partition_name: string;
-    partition_indices: PartitionIndex[];
+    partition_indices: PartitionIndex;
     storage_location: string;
-    data: any[];
+    data: { [key: string]: any };
     table_folder_path: string;
+    primary_key: string;
+    is_dirty: boolean;
+
     insert: (data: any[] | any) => void;
     write_to_file: () => Promise<any>;
 }
 
-type PartitionIndex = { index_name: string, index_value: any };
-
 export class partition implements Partition {
     partition_name: string;
-    partition_indices: PartitionIndex[];
+    partition_indices: PartitionIndex;
     storage_location: string;
-    data: any[];
+    data: { [key: string]: any };
     table_folder_path: string;
+    primary_key: string;
 
-    constructor({ table_folder_path, partition_indices }: { table_folder_path: string, partition_indices: PartitionIndex[] }) {
+    is_dirty: boolean;
+
+    constructor({ table_folder_path, partition_indices, primary_key }: { table_folder_path: string, partition_indices: PartitionIndex, primary_key: string }) {
         this.partition_indices = partition_indices;
         this.table_folder_path = table_folder_path;
-        this.data = []
+        this.primary_key = primary_key;
+        this.is_dirty = true;
+        this.data = {}
 
-        this.partition_name = partition_indices.map((partition_index: PartitionIndex) => {
-            return `${partition_index.index_name}_${partition_index.index_value}`;
-        }).join('_');
+        this.partition_name = partition_name_from_partition_index(this.partition_indices)
         this.storage_location = `${table_folder_path}/${this.partition_name}.json`;
     }
 
     insert(data: any[] | any) {
 
+        let data_to_insert = [];
         if (Array.isArray(data)) {
-            this.data.push(...data);
+            data_to_insert = data;
         }
         else {
-            this.data.push(data);
+            data_to_insert = [data];
         }
+
+        for (let row in data_to_insert) {
+            let row_pk = data_to_insert[row][this.primary_key];
+            this.data[row_pk] = data_to_insert[row];
+        }
+
+        this.is_dirty = true;
     }
 
     write_to_file = async () => {
-        // Stringify the data with an indentation of 2 spaces
+
+        if (!this.is_dirty) {
+            return;
+        }
+        this.is_dirty = false;
         let data = JSON.stringify(this, null, 2);
 
-        // Create the directory if it does not exist
         const dirname = path.dirname(this.storage_location);
         await fs.mkdir(dirname, { recursive: true });
 
-        // Write the file with pretty printed JSON
         return fs.writeFile(this.storage_location, data);
     }
 
@@ -59,18 +81,18 @@ export class partition implements Partition {
 export type Table = {
     table_name: string;
     indices: string[];
-    indexed_data: any;
     storage_location: string;
     primary_key: string;
 
     partitions_by_partition_name: { [key: string]: Partition };
+    partition_name_by_primary_key: { [key: string]: string };
 
     insert: (data: any[]) => void;
     find: (query: any) => any[];
     findOne: (query: any) => any;
     output_to_file: () => void;
-    filter: (data: any, query_field:any, query_clause: any) => any;
-    index_filter: (data: any, query_clause: any) => any;
+    filter: (data: any, query_field: any, query_clause: any) => any;
+    index_filter: (partitions: Partition[], index_name: string, query_clause: QueryClause) => Partition[];
 }
 
 type QueryField = string;
@@ -93,99 +115,70 @@ export type Query = {
 export class table implements Table {
     table_name: string;
     indices: string[];
-    indexed_data: { [key: string]: any };
     storage_location: string;
+    output_file_path: string;
     primary_key: string;
     partitions_by_partition_name: { [key: string]: Partition };
+    partition_name_by_primary_key: { [key: string]: string };
 
-    constructor({ table_name, indices, folder_path, dbname, primary_key }: { table_name: string, indices: string[], folder_path: string, dbname: string, primary_key: string }) {
+    constructor({ table_name, indices, folder_path, primary_key }: { table_name: string, indices: string[], folder_path: string, dbname: string, primary_key: string }) {
         this.table_name = table_name;
         this.indices = indices;
         this.primary_key = primary_key;
 
-        this.indexed_data = {};
         this.partitions_by_partition_name = {};
+        this.partition_name_by_primary_key = {};
 
-        this.storage_location = `${folder_path}/${dbname}/${table_name}`;
+        this.storage_location = `${folder_path}/${table_name}`;
+        this.output_file_path = `${this.storage_location}/_${table_name}.json`;
+    }
+
+
+    output_to_file = async () => {
+        let partitions = this.find_partitions();
+
+        let output_data = {
+            table_name: this.table_name,
+            indices: this.indices,
+            primary_key: this.primary_key,
+            partition_names: Object.keys(this.partitions_by_partition_name),
+            output_file_path: this.output_file_path,
+            storage_location: this.storage_location,
+        }
+        let data = JSON.stringify(output_data, null, 2);
+
+        return Promise.all([partitions.map(partition => partition.write_to_file()), fs.writeFile(this.output_file_path, data)]);
     }
 
     insert(data: any[]) {
         for (let row of data) {
             let row_pk = row[this.primary_key];
             // TODO check for moving partitions
-            let navigated_index = this.indexed_data;
-            let partition_indices: PartitionIndex[] = []
+            let partitions_by_partition_name = this.partitions_by_partition_name;
+            let partition_indices: PartitionIndex = {}
 
-            this.indices.forEach((index_name, idx) => {
-                let is_last_index = idx == this.indices.length - 1;
-                let row_index_value = row[index_name];
-                let index_in_navigation_index = navigated_index[row_index_value] != undefined;
-
-                partition_indices.push({ index_name, index_value: row_index_value });
-
-
-
-                if (!index_in_navigation_index) {
-                    if (!is_last_index) {
-                        navigated_index[row_index_value] = {};
-                        navigated_index = navigated_index[row_index_value];
-                    }
-                    else if (is_last_index) {
-                        navigated_index[row_index_value] = new partition({ table_folder_path: this.storage_location, partition_indices });
-                        navigated_index[row_index_value].insert(row)
-                    }
-                }
-                else {
-                    if (is_last_index) {
-                        navigated_index[row_index_value].insert(row);
-                    }
-                    else if (!is_last_index) {
-                        navigated_index = navigated_index[row_index_value];
-                    }
-                }
-
+            this.indices.forEach(index_name => {
+                let index_value = row[index_name];
+                partition_indices[index_name] = index_value;
             })
-        }
-    }
 
-    output_to_file = async () => {
-        let partitions = this.find_partitions(this.indexed_data);
+            let partition_name = partition_name_from_partition_index(partition_indices)
+            this.partition_name_by_primary_key[row_pk] = partition_name;
 
-        return Promise.all(partitions.map(partition => partition.write_to_file()));
-    }
-
-
-    find_partitions(data: any): Partition[] {
-        // Base case: if data is a partition, return it in an array
-        if (data instanceof partition) {
-            return [data]; // return as an array
-        }
-
-        // If data is an object (and not null, which also returns "object" for typeof), iterate its keys
-        if (data && typeof data === 'object' && !(data instanceof Array)) {
-            let partitions: Partition[] = [];
-            for (const key in data) {
-                if (data.hasOwnProperty(key)) { // Check if the key is actually a property of 'data'
-                    const result = this.find_partitions(data[key]); // Recursive call
-                    partitions = partitions.concat(result); // Concatenate results
-                }
+            if (!this.partitions_by_partition_name.hasOwnProperty(partition_name)) {
+                this.partitions_by_partition_name[partition_name] = new partition({ table_folder_path: this.storage_location, partition_indices, primary_key: this.primary_key });
             }
-            return partitions; // Return the cumulative partitions
-        }
 
-        // If data is an array, loop through its elements and find partitions
-        if (Array.isArray(data)) {
-            let partitions: Partition[] = [];
-            for (const item of data) {
-                const result = this.find_partitions(item); // Recursive call
-                partitions = partitions.concat(result); // Concatenate results
-            }
-            return partitions; // Return the cumulative partitions
+            this.partitions_by_partition_name[partition_name].insert(row);
         }
-
-        // If it's neither an object nor an array, return an empty array
-        return [];
     }
+
+
+    find_partitions(): Partition[] {
+        return Object.values(this.partitions_by_partition_name);
+    }
+
+
 
     // TODO - clean queries, so stuff like IN changes to a SET
     normalize_query(query: LooseQuery) {
@@ -206,7 +199,7 @@ export class table implements Table {
             for (let query_function in query_clause) {
                 let query_function_value = query_clause[query_function as QueryFunction];
                 if (query_function == '$eq') {
-                    if (!(row[query_field] == query_function_value)){
+                    if (!(row[query_field] == query_function_value)) {
                         return false;
                     }
                 }
@@ -218,71 +211,57 @@ export class table implements Table {
         return data;
     }
 
-    index_filter(data: any, query_clause: QueryClause) {
+    index_filter(partitions: Partition[], index_name: string, query_clause: QueryClause) {
 
-        Object.keys(query_clause).forEach(function(query_function) {
+        console.log('index_filter', { query_clause, index_name })
+
+        Object.keys(query_clause).forEach(function (query_function) {
             let query_function_value = query_clause[query_function as QueryFunction];
-            console.log('index_filter loop', {query_function, query_function_value, data, query_clause})
             if (query_function == '$eq') {
-                data = data[query_function_value];
-                console.log('index_filter $eq', {data})
+                partitions = partitions.filter((partition: any) => {
+                    return partition.partition_indices[index_name] == query_function_value
+                })
             }
         })
 
-        return data;
+        return partitions;
     }
 
-    merge_indexed_data(data: any[]) {
-        let merged_data: any = {};
-        for (let values of data) {
-            for(let key in values) {
-                if (!merged_data.hasOwnProperty(key)) {
-                    merged_data[key] = values[key];
-                }
+
+    find(input_query: LooseQuery): any[] {
+
+        if(input_query.hasOwnProperty('$or')) {
+            let results = [];
+            for (let subquery of input_query['$or']) {
+                results.push(this.find(subquery));
             }
+
+            return results.flat();
         }
-
-        console.log('merge_indexed_data', {merged_data})
-
-        return merged_data;
-    }
-
-
-    find(input_query: LooseQuery) {
-
+        
         let query = this.normalize_query(input_query);
+        let valid_partitions = this.find_partitions();
 
-        console.log({ query })
-        let filtered_indexed_data = this.indexed_data;
+        // TODO - check if query has primary key, if so, use that to filter partitions
+        // if (query[this.primary_key]) {
 
-        if (query[this.primary_key]) {
-
-        }
+        // }
 
         for (let index_name of this.indices) {
-            if (query[index_name]){
+            if (query[index_name]) {
                 let query_clause = query[index_name] as QueryClause;
-                console.log('Has clause for index', {index_name, query_clause})
-                filtered_indexed_data = this.index_filter(filtered_indexed_data, query_clause);
+                console.log('Has clause for index', { index_name, query_clause })
+                valid_partitions = this.index_filter(valid_partitions, index_name, query_clause);
 
                 delete query[index_name];
             }
-            else {
-                console.log('No clause for index', {index_name, filtered_indexed_data}, )
-                filtered_indexed_data = this.merge_indexed_data(Object.values(filtered_indexed_data))
-            }
         }
 
-        let partitions = this.find_partitions(filtered_indexed_data);
-        let rows = partitions.map(partition => partition.data).flat() || [];
+        let rows = valid_partitions.map((partition: Partition) => Object.values(partition.data)).flat() || [];
         for (let query_key in query) {
             let query_clause = query[query_key] as QueryClause;
             rows = this.filter(rows, query_key, query_clause);
         }
-
-        console.log({rows, query})
-
-        rows = rows.map((row: any) => row.name);
 
         return rows;
     }
@@ -297,11 +276,6 @@ export class table implements Table {
             return data[0];
         }
     }
-
-    // get_data_flat() {
-    //     return this.data;
-    // }
-
 }
 
 
@@ -309,16 +283,38 @@ export class database {
     dbname: any;
     tables: { [key: string]: Table };
     folder_path: string;
+    storage_location: string;
+    output_file_path: string;
 
     constructor({ dbname, folder_path }: { dbname: string, folder_path: string }) {
         this.dbname = dbname;
         this.folder_path = folder_path;
         this.tables = {};
+
+        this.storage_location = `${folder_path}/${dbname}`;
+        this.output_file_path = `${this.storage_location}/_${dbname}.json`;
     }
 
     add_table({ table_name, indices, primary_key }: { table_name: string, indices: string[], primary_key: string }) {
         let new_table = new table({ table_name, indices, folder_path: this.folder_path, dbname: this.dbname, primary_key });
         this.tables[table_name] = new_table;
         return new_table;
+    }
+
+    save_database = async () => {
+        let tables = Object.values(this.tables);
+        let table_info = tables.map(table => ({ table_name: table.table_name, indices: table.indices, primary_key: table.primary_key }));
+
+        let save_data = {
+            dbname: this.dbname,
+            tables: table_info,
+            storage_location: this.storage_location,
+            output_file_path: this.output_file_path,
+        }
+
+        let data = JSON.stringify(save_data, null, 2);
+
+        return Promise.all([tables.map(table => table.output_to_file()), fs.writeFile(this.output_file_path, data)]);
+
     }
 }

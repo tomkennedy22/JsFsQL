@@ -48,6 +48,20 @@ await db.save_database();
 ```
 
 
+**Query operators**, largely using industry-standard
+| Operator | Notes                                      |
+|----------|--------------------------------------------|
+| $eq      | Value equals                               |
+| $ne      | Value not equal                            |
+| $gt      | Value greater than                         |
+| $gte     | Value greater than or equal to             |
+| $lt      | Value less than                            |
+| $lte     | Value less than or equal to                |
+| $in      | Value in an array                          |
+| $nin     | Value not in an array                      |
+| $or      | Logical OR of multiple queries             |
+
+
 
 ---------------
 ### Development & use

@@ -150,37 +150,56 @@ export class table implements Table {
         return Promise.all([partitions.map(partition => partition.write_to_file()), fs.writeFile(this.output_file_path, data)]);
     }
 
+    /**
+     * Inserts data into the index.
+     * @param data Array of objects, each representing a row to be inserted, keyed by index fields.
+     */
     insert(data: any[]) {
+        // Process each row for insertion into its partition
         for (let row of data) {
-            let row_pk = row[this.primary_key];
-            // TODO check for moving partitions
-            let partitions_by_partition_name = this.partitions_by_partition_name;
-            let partition_indices: PartitionIndex = {}
+            let row_pk = row[this.primary_key]; // Capture the primary key value from the row
 
+            let partition_indices: PartitionIndex = {};
+            // Generate partition index keys from the row based on the table indices
             this.indices.forEach(index_name => {
-                let index_value = row[index_name];
-                partition_indices[index_name] = index_value;
-            })
+                partition_indices[index_name] = row[index_name];
+            });
 
-            let partition_name = partition_name_from_partition_index(partition_indices)
+            // Determine the partition name from the indices for row placement
+            let partition_name = partition_name_from_partition_index(partition_indices);
             this.partition_name_by_primary_key[row_pk] = partition_name;
 
+            // Create a new partition if it doesn't exist
             if (!this.partitions_by_partition_name.hasOwnProperty(partition_name)) {
-                this.partitions_by_partition_name[partition_name] = new partition({ table_folder_path: this.storage_location, partition_indices, primary_key: this.primary_key });
+                this.partitions_by_partition_name[partition_name] = new partition({
+                    table_folder_path: this.storage_location,
+                    partition_indices,
+                    primary_key: this.primary_key
+                });
             }
 
+            // Delegate the row insertion to the partition's own insert method
             this.partitions_by_partition_name[partition_name].insert(row);
         }
     }
 
 
+
+    /**
+     * Returns an array of all partitions in the index.
+     * @returns {Partition[]} An array of Partition objects.
+     */
     find_partitions(): Partition[] {
         return Object.values(this.partitions_by_partition_name);
     }
 
 
-
     // TODO - clean queries, so stuff like IN changes to a SET
+    /**
+     * Normalizes a given query by converting any string or number values to an object with an $eq operator.
+     * @param query - The query to normalize.
+     * @returns The normalized query.
+     */
     normalize_query(query: LooseQuery) {
 
         for (let query_field in query) {
@@ -193,44 +212,101 @@ export class table implements Table {
         return query as Query;
     }
 
-    filter(data: any, query_field: string, query_clause: QueryClause) {
-
-        data = data.filter((row: any) => {
-            for (let query_function in query_clause) {
-                let query_function_value = query_clause[query_function as QueryFunction];
-                if (query_function == '$eq') {
-                    if (!(row[query_field] == query_function_value)) {
-                        return false;
-                    }
+    /**
+     * Filters data based on a query field and query clause.
+     * @param data Array of objects to filter.
+     * @param query_field The field of the objects to query against.
+     * @param query_clause Object defining the query operations and values.
+     * @returns Filtered data array.
+     */
+    filter(data: any[], query_field: string, query_clause: QueryClause): any[] {
+        return data.filter((row: any) => {
+            for (const [query_function, query_value] of Object.entries(query_clause)) {
+                switch (query_function) {
+                    case '$eq':
+                        if (row[query_field] !== query_value) return false;
+                        break;
+                    case '$ne':
+                        if (row[query_field] === query_value) return false;
+                        break;
+                    case '$gt':
+                        if (!(row[query_field] > query_value)) return false;
+                        break;
+                    case '$gte':
+                        if (!(row[query_field] >= query_value)) return false;
+                        break;
+                    case '$lt':
+                        if (!(row[query_field] < query_value)) return false;
+                        break;
+                    case '$lte':
+                        if (!(row[query_field] <= query_value)) return false;
+                        break;
+                    case '$in':
+                        if (!query_value.includes(row[query_field])) return false;
+                        break;
+                    case '$nin':
+                        if (query_value.includes(row[query_field])) return false;
+                        break; default:
+                        throw new Error(`Unsupported query function: ${query_function}`);
                 }
             }
-
-            return true;
+            return true; // Row passes all query clauses
         });
-
-        return data;
     }
 
-    index_filter(partitions: Partition[], index_name: string, query_clause: QueryClause) {
 
-        console.log('index_filter', { query_clause, index_name })
+    /**
+     * Filters partitions based on a given index name and query clause.
+     * @param partitions Array of Partition objects to filter.
+     * @param index_name The index field to be queried against.
+     * @param query_clause Object defining the query operations and values.
+     * @returns Filtered array of Partition objects.
+     */
+    index_filter(partitions: Partition[], index_name: string, query_clause: QueryClause): Partition[] {
+        let filteredPartitions = partitions;
 
-        Object.keys(query_clause).forEach(function (query_function) {
-            let query_function_value = query_clause[query_function as QueryFunction];
-            if (query_function == '$eq') {
-                partitions = partitions.filter((partition: any) => {
-                    return partition.partition_indices[index_name] == query_function_value
-                })
+        for (const [query_function, query_value] of Object.entries(query_clause)) {
+            switch (query_function) {
+                case '$eq':
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] === query_value);
+                    break;
+                case '$ne':
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] !== query_value);
+                    break;
+                case '$gt':
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] > query_value);
+                    break;
+                case '$gte':
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] >= query_value);
+                    break;
+                case '$lt':
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] < query_value);
+                    break;
+                case '$lte':
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] <= query_value);
+                    break;
+                case '$in':
+                    filteredPartitions = filteredPartitions.filter(partition => query_value.includes(partition.partition_indices[index_name]));
+                    break;
+                case '$nin':
+                    filteredPartitions = filteredPartitions.filter(partition => !query_value.includes(partition.partition_indices[index_name]));
+                    break;
+                default:
+                    throw new Error(`Unsupported query function: ${query_function}`);
             }
-        })
 
-        return partitions;
+            // If there are no partitions left after filtering with a query function, break early
+            if (filteredPartitions.length === 0) break;
+        }
+
+        return filteredPartitions;
     }
+
 
 
     find(input_query: LooseQuery): any[] {
 
-        if(input_query.hasOwnProperty('$or')) {
+        if (input_query.hasOwnProperty('$or')) {
             let results = [];
             for (let subquery of input_query['$or']) {
                 results.push(this.find(subquery));
@@ -238,7 +314,7 @@ export class table implements Table {
 
             return results.flat();
         }
-        
+
         let query = this.normalize_query(input_query);
         let valid_partitions = this.find_partitions();
 

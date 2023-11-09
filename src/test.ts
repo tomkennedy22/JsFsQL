@@ -49,8 +49,10 @@ db.tables.person.insert(data);
 // console.log({results_1994_CA, results_1994, results_CA, results_matts, results_matt, results_pid_1, results_pid_1_eq})
 
 let results_1990_1994 = db.tables.person.find({$or: [{birth_year: 1990}, {birth_year: 1994}]});
+let results_gt_1992 = db.tables.person.find({birth_year: {$gt: 1992}});
+let results_gte_1993 = db.tables.person.find({birth_year: {$gte: 1993}});
 
-console.log({results_1990_1994})
+console.log({results_1990_1994, results_gt_1992, results_gte_1993})
 
 db.save_database()
 

@@ -1,10 +1,10 @@
 import fs from "fs/promises";
 import path from "path";
-import { LooseQuery, Partition, PartitionIndex, Query, QueryClause, Table } from "./types";
+import { type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_table } from "./types";
 
 // Helper function to generate a partition name based on the partition index.
 // It converts the index into a string format suitable for file naming.
-const partition_name_from_partition_index = (partition_index: PartitionIndex): string => {
+const partition_name_from_partition_index = (partition_index: type_partition_index): string => {
     return Object.entries(partition_index)
         .map(([indexKey, indexValue]) => `${indexKey}_${indexValue}`)
         .join('_');
@@ -13,9 +13,9 @@ const partition_name_from_partition_index = (partition_index: PartitionIndex): s
 
 
 // The Partition class definition, implementing the Partition type.
-export class partition implements Partition {
+export class partition implements type_partition {
     partition_name: string;
-    partition_indices: PartitionIndex;
+    partition_indices: type_partition_index;
     storage_location: string;
     output_file_path: string;
     data: { [key: string]: any };
@@ -23,7 +23,7 @@ export class partition implements Partition {
     is_dirty: boolean = true; // Default is_dirty to true to indicate the partition requires saving upon creation.
 
     // Constructor to initialize a new partition with given properties.
-    constructor({ storage_location, partition_indices, primary_key }: { storage_location: string, partition_indices: PartitionIndex, primary_key: string }) {
+    constructor({ storage_location, partition_indices, primary_key }: { storage_location: string, partition_indices: type_partition_index, primary_key: string }) {
         this.partition_indices = partition_indices;
         this.primary_key = primary_key;
         this.data = {}; // Initialize data as an empty object.
@@ -104,13 +104,13 @@ export class partition implements Partition {
 
 
 
-export class table implements Table {
+export class table implements type_table {
     table_name: string;
     indices: string[];
     storage_location: string;
     output_file_path: string;
     primary_key: string;
-    partitions_by_partition_name: { [key: string]: Partition };
+    partitions_by_partition_name: { [key: string]: type_partition };
     partition_name_by_primary_key: { [key: string]: string };
 
     constructor({ table_name, indices, storage_location, primary_key }: { table_name: string, indices: string[], storage_location: string, dbname: string, primary_key: string }) {
@@ -197,7 +197,7 @@ export class table implements Table {
         for (let row of data) {
             let row_pk = row[this.primary_key]; // Capture the primary key value from the row
 
-            let partition_indices: PartitionIndex = {};
+            let partition_indices: type_partition_index = {};
             // Generate partition index keys from the row based on the table indices
             this.indices.forEach(index_name => {
                 partition_indices[index_name] = row[index_name];
@@ -225,9 +225,9 @@ export class table implements Table {
 
     /**
      * Returns an array of all partitions in the index.
-     * @returns {Partition[]} An array of Partition objects.
+     * @returns {type_partition[]} An array of Partition objects.
      */
-    find_partitions(): Partition[] {
+    find_partitions(): type_partition[] {
         return Object.values(this.partitions_by_partition_name);
     }
 
@@ -238,16 +238,16 @@ export class table implements Table {
      * @param query - The query to normalize.
      * @returns The normalized query.
      */
-    normalize_query(query: LooseQuery) {
+    normalize_query(query: type_loose_query) {
 
         for (let query_field in query) {
-            let query_clause: QueryClause = query[query_field] as QueryClause;
+            let query_clause: type_query_clause = query[query_field] as type_query_clause;
             if (typeof query_clause === 'string' || typeof query_clause === 'number') {
                 query[query_field] = { $eq: query_clause };
             }
         }
 
-        return query as Query;
+        return query as type_query;
     }
 
     /**
@@ -257,7 +257,7 @@ export class table implements Table {
      * @param query_clause Object defining the query operations and values.
      * @returns Filtered data array.
      */
-    filter(data: any[], query_field: string, query_clause: QueryClause): any[] {
+    filter(data: any[], query_field: string, query_clause: type_query_clause): any[] {
         return data.filter((row: any) => {
             for (const [query_function, query_value] of Object.entries(query_clause)) {
                 switch (query_function) {
@@ -300,7 +300,7 @@ export class table implements Table {
      * @param query_clause Object defining the query operations and values.
      * @returns Filtered array of Partition objects.
      */
-    index_filter(partitions: Partition[], index_name: string, query_clause: QueryClause): Partition[] {
+    index_filter(partitions: type_partition[], index_name: string, query_clause: type_query_clause): type_partition[] {
         let filteredPartitions = partitions;
 
         for (const [query_function, query_value] of Object.entries(query_clause)) {
@@ -342,7 +342,7 @@ export class table implements Table {
 
 
 
-    find(input_query: LooseQuery): any[] {
+    find(input_query: type_loose_query): any[] {
 
         if (input_query.hasOwnProperty('$or')) {
             let results = [];
@@ -357,7 +357,7 @@ export class table implements Table {
         let valid_partitions = this.find_partitions();
 
         if (query[this.primary_key]) {
-            let query_clause = query[this.primary_key] as QueryClause;
+            let query_clause = query[this.primary_key] as type_query_clause;
             valid_partitions = valid_partitions.filter(partition => partition.partition_name === this.partition_name_by_primary_key[query_clause['$eq']]);
         }
 
@@ -365,7 +365,7 @@ export class table implements Table {
 
         for (let index_name of this.indices) {
             if (query[index_name]) {
-                let query_clause = query[index_name] as QueryClause;
+                let query_clause = query[index_name] as type_query_clause;
                 console.log('Has clause for index', { index_name, query_clause })
                 valid_partitions = this.index_filter(valid_partitions, index_name, query_clause);
 
@@ -373,16 +373,16 @@ export class table implements Table {
             }
         }
 
-        let rows = valid_partitions.map((partition: Partition) => Object.values(partition.data)).flat() || [];
+        let rows = valid_partitions.map((partition: type_partition) => Object.values(partition.data)).flat() || [];
         for (let query_key in query) {
-            let query_clause = query[query_key] as QueryClause;
+            let query_clause = query[query_key] as type_query_clause;
             rows = this.filter(rows, query_key, query_clause);
         }
 
         return rows;
     }
 
-    findOne(query: Query) {
+    findOne(query: type_query) {
 
         let data = this.find(query);
         if (data.length == 0) {
@@ -397,7 +397,7 @@ export class table implements Table {
 
 export class database {
     dbname: any;
-    tables: { [key: string]: Table };
+    tables: { [key: string]: type_table };
     folder_path: string;
     storage_location: string;
     output_file_path: string;

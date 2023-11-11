@@ -7,7 +7,6 @@ const test = async () => {
     console.log(`\n\n\n\n\n\n\n Starting new test suite!`)
 
     let folder_path = path.resolve(__dirname, `../databases/`)
-
     let db = new database({ dbname: "test_db", folder_path });
     await db.read_from_file();
 

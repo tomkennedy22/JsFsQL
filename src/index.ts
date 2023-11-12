@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_table } from "./types";
+import { type_database, type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_table } from "./types";
 
 // Helper function to generate a partition name based on the partition index.
 // It converts the index into a string format suitable for file naming.
@@ -17,15 +17,17 @@ export class partition implements type_partition {
     partition_name: string;
     partition_indices: type_partition_index;
     storage_location: string;
+    proto: any;
     output_file_path: string;
     data: { [key: string]: any };
     primary_key: string;
     is_dirty: boolean = true; // Default is_dirty to true to indicate the partition requires saving upon creation.
 
     // Constructor to initialize a new partition with given properties.
-    constructor({ storage_location, partition_indices, primary_key }: { storage_location: string, partition_indices: type_partition_index, primary_key: string }) {
+    constructor({ storage_location, partition_indices, primary_key, proto }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: any }) {
         this.partition_indices = partition_indices;
         this.primary_key = primary_key;
+        this.proto = proto;
         this.data = {}; // Initialize data as an empty object.
         // Generate a partition name from the provided indices and form the storage location path.
         this.partition_name = partition_name_from_partition_index(partition_indices);
@@ -48,12 +50,27 @@ export class partition implements type_partition {
         dataToInsert.forEach((row) => {
             const rowPk = row[this.primary_key];
             if (rowPk === undefined) {
-                throw new Error('Primary key value missing in the data row.');
+                throw new Error(`Primary key value missing in the data row. Cannot insert into partition. Table ${this.partition_name} and primary key ${this.primary_key} and value ${rowPk}`);
+            }
+            else if (this.data.hasOwnProperty(rowPk)) {
+                throw new Error(`Duplicate primary key value: ${rowPk} for field ${this.primary_key} in partition ${this.partition_name}`);
             }
             this.data[rowPk] = row;
+
+            // Mark the dataset as 'dirty' to indicate that the state has changed   
+            this.is_dirty = true;
         });
 
-        // Mark the dataset as 'dirty' to indicate that the state has changed
+    }
+
+    update(row: any): void {
+        const rowPk = row[this.primary_key];
+        if (!this.data.hasOwnProperty(rowPk)) {
+            throw new Error(`Row with primary key ${rowPk} does not exist in partition ${this.partition_name}.`);
+        }
+
+        // Update the row and mark partition as dirty
+        this.data[rowPk] = row;
         this.is_dirty = true;
     }
 
@@ -84,21 +101,43 @@ export class partition implements type_partition {
     }
 
     read_from_file = async () => {
-        console.log('Reading from file')
-        let data = await fs.readFile(this.output_file_path, 'utf-8');
-        let parsed_data = JSON.parse(data);
+        console.trace('Reading from file')
+        try {
+            let data = await fs.readFile(this.output_file_path, 'utf-8');
+            let parsed_data = JSON.parse(data);
 
-        let { partition_name, partition_indices, data: partition_data, storage_location, primary_key } = parsed_data;
+            let { partition_name, partition_indices, data: partition_data, storage_location, primary_key } = parsed_data;
 
-        console.log({ partition_name, partition_indices, partition_data, storage_location, primary_key })
+            console.log({ partition_name, partition_indices, partition_data, storage_location, primary_key })
 
-        this.partition_name = partition_name;
-        this.partition_indices = partition_indices;
-        this.data = partition_data;
-        this.storage_location = storage_location;
-        this.primary_key = primary_key;
+            this.partition_name = partition_name;
+            this.partition_indices = partition_indices;
+            this.data = Object.fromEntries(
+                Object.entries(partition_data).map(([key, value]) => [key, new this.proto(value)])
+            );
+            this.storage_location = storage_location;
+            this.primary_key = primary_key;
 
-        return;
+            return Promise.resolve();
+        }
+        catch (error) {
+            console.log('Error reading from file', error, this.output_file_path)
+        }
+    }
+
+    delete_file = async () => {
+        try {
+            this.data = {};
+
+            // Delete the file associated with this partition
+            await fs.unlink(this.output_file_path);
+            console.log(`Deleted file at: ${this.output_file_path}`);
+        } catch (error) {
+            // Handle possible errors, such as file not existing
+            console.error(`Error deleting file at: ${this.output_file_path}`, error);
+        }
+
+        return Promise.resolve();
     }
 }
 
@@ -110,13 +149,15 @@ export class table implements type_table {
     storage_location: string;
     output_file_path: string;
     primary_key: string;
+    proto?: any;
     partitions_by_partition_name: { [key: string]: type_partition };
     partition_name_by_primary_key: { [key: string]: string };
 
-    constructor({ table_name, indices, storage_location, primary_key }: { table_name: string, indices: string[], storage_location: string, dbname: string, primary_key: string }) {
+    constructor({ table_name, indices, storage_location, primary_key, proto }: { table_name: string, indices: string[], storage_location: string, dbname: string, primary_key: string, proto?: any }) {
         this.table_name = table_name;
-        this.indices = indices;
+        this.indices = indices || [];
         this.primary_key = primary_key;
+        this.proto = proto;
 
         this.partitions_by_partition_name = {};
         this.partition_name_by_primary_key = {};
@@ -143,49 +184,56 @@ export class table implements type_table {
         const dirname = path.dirname(this.output_file_path);
         await fs.mkdir(dirname, { recursive: true });
 
-        return Promise.all([partitions.map(partition => partition.write_to_file()), fs.writeFile(this.output_file_path, data)]);
+        await Promise.all([partitions.map(partition => partition.write_to_file())]);
+        await fs.writeFile(this.output_file_path, data)
     }
 
     read_from_file = async () => {
-        console.log('Reading from file')
-        let data = await fs.readFile(this.output_file_path, 'utf-8');
-        let parsed_data = JSON.parse(data);
-
-        let { table_name, indices, primary_key, partition_names, storage_location } = parsed_data;
-
-        console.log({ table_name, indices, primary_key, partition_names, storage_location })
-
-        this.table_name = table_name;
-        this.indices = indices;
-        this.primary_key = primary_key;
-        this.storage_location = storage_location;
+        console.trace('Reading from file')
+        try {
+            let data = await fs.readFile(this.output_file_path, 'utf-8');
+            let parsed_data = JSON.parse(data);
     
-        // Collecting promises for each partition read operation
-        const partitionReadPromises = partition_names.map(async (partition_name: string) => {
-            console.log('Reading partition', { partition_name });
-            let partition_data = await fs.readFile(`${storage_location}/${partition_name}.json`, 'utf-8');
-            let parsed_partition_data = JSON.parse(partition_data);
-            let { partition_indices, data } = parsed_partition_data;
+            let { table_name, indices, primary_key, partition_names, storage_location } = parsed_data;
     
-            // Create and assign partition instance
-            let new_partition = new partition({ storage_location, partition_indices, primary_key });
-            new_partition.data = data;
-            new_partition.is_dirty = false;
+            console.log({ table_name, indices, primary_key, partition_names, storage_location })
     
-            this.partitions_by_partition_name[partition_name] = new_partition;
+            this.table_name = table_name;
+            this.indices = indices;
+            this.primary_key = primary_key;
+            this.storage_location = storage_location;
     
-            // Process primary keys if necessary
-            for (let pk in data) {
-                this.partition_name_by_primary_key[pk] = partition_name;
-            }
-        });
+            // Collecting promises for each partition read operation
+            const partitionReadPromises = partition_names.map(async (partition_name: string) => {
+                console.log('Reading partition', { partition_name });
+                let partition_data = await fs.readFile(`${storage_location}/${partition_name}.json`, 'utf-8');
+                let parsed_partition_data = JSON.parse(partition_data);
+                let { partition_indices, data } = parsed_partition_data;
     
-        // Wait for all partition read operations to complete
-        await Promise.all(partitionReadPromises);
+                // Create and assign partition instance
+                let new_partition = new partition({ storage_location, partition_indices, primary_key, proto:this.proto });
+                new_partition.data = data;
+                new_partition.is_dirty = false;
     
-        console.log('All partitions have been read from file');
+                this.partitions_by_partition_name[partition_name] = new_partition;
     
-        return;
+                // Process primary keys if necessary
+                for (let pk in data) {
+                    this.partition_name_by_primary_key[pk] = partition_name;
+                }
+            });
+    
+            // Wait for all partition read operations to complete
+            await Promise.all(partitionReadPromises);
+    
+            console.log('All partitions have been read from file');
+    
+            Promise.resolve();
+    
+        }
+        catch (error) {
+            console.log('Error reading from file', error, this.output_file_path)
+        }
     }
 
     /**
@@ -198,6 +246,7 @@ export class table implements type_table {
             let row_pk = row[this.primary_key]; // Capture the primary key value from the row
 
             let partition_indices: type_partition_index = {};
+            console.log('In insert', { row, indices: this.indices })
             // Generate partition index keys from the row based on the table indices
             this.indices.forEach(index_name => {
                 partition_indices[index_name] = row[index_name];
@@ -212,12 +261,42 @@ export class table implements type_table {
                 this.partitions_by_partition_name[partition_name] = new partition({
                     storage_location: this.storage_location,
                     partition_indices,
-                    primary_key: this.primary_key
+                    primary_key: this.primary_key,
+                    proto: this.proto,
                 });
             }
 
             // Delegate the row insertion to the partition's own insert method
             this.partitions_by_partition_name[partition_name].insert(row);
+        }
+    }
+
+    update(data: any[] | any): void {
+        if (!Array.isArray(data)) {
+            data = [data];
+        }
+
+        for (const row of data) {
+            // Retrieve primary key value from the row
+            const rowPk = row[this.primary_key];
+            if (rowPk === undefined) {
+                throw new Error(`Primary key value missing in the data row. Cannot update.`);
+            }
+
+            // Find partition name using the primary key
+            const partitionName = this.partition_name_by_primary_key[rowPk];
+            if (!partitionName) {
+                throw new Error(`Row with primary key ${rowPk} does not exist and cannot be updated.`);
+            }
+
+            // Retrieve the corresponding partition
+            const partition = this.partitions_by_partition_name[partitionName];
+            if (!partition) {
+                throw new Error(`Partition ${partitionName} does not exist. Cannot update row with primary key ${rowPk}.`);
+            }
+
+            // Update the row within the partition if it exists
+            partition.update(row);
         }
     }
 
@@ -340,9 +419,37 @@ export class table implements type_table {
         return filteredPartitions;
     }
 
+    clear = async () => {
 
+        for (let name in this.partitions_by_partition_name) {
+            let partition = this.partitions_by_partition_name[name];
+            await partition.delete_file();
+        }
 
-    find(input_query: type_loose_query): any[] {
+        this.partitions_by_partition_name = {};
+        this.partition_name_by_primary_key = {};
+
+        return Promise.resolve();
+    }
+
+    next_id = () => {
+        let keys = Object.keys(this.partition_name_by_primary_key);
+        if (keys.length === 0) {
+            return 1;
+        }
+        let max_id = Math.max(...keys.map(key => parseInt(key)));
+        return max_id + 1;
+    }
+
+    count(): number {
+        return Object.keys(this.partition_name_by_primary_key).length;
+    }
+
+    find(input_query?: type_loose_query): any[] {
+
+        if (!input_query) {
+            return Object.values(this.partitions_by_partition_name).map(partition => Object.values(partition.data)).flat();
+        }
 
         if (input_query.hasOwnProperty('$or')) {
             let results = [];
@@ -373,7 +480,17 @@ export class table implements type_table {
             }
         }
 
+
+        // TODO better key filtering
+        // let rows;
+
+        // if (query[this.primary_key]) {
+        //     let query_clause = query[this.primary_key] as type_query_clause;
+        //     valid_partitions = valid_partitions.filter(partition => partition.partition_name === this.partition_name_by_primary_key[query_clause['$eq']]);
+        // }
+
         let rows = valid_partitions.map((partition: type_partition) => Object.values(partition.data)).flat() || [];
+
         for (let query_key in query) {
             let query_clause = query[query_key] as type_query_clause;
             rows = this.filter(rows, query_key, query_clause);
@@ -382,7 +499,7 @@ export class table implements type_table {
         return rows;
     }
 
-    findOne(query: type_query) {
+    findOne(query?: type_loose_query) {
 
         let data = this.find(query);
         if (data.length == 0) {
@@ -395,8 +512,8 @@ export class table implements type_table {
 }
 
 
-export class database {
-    dbname: any;
+export class database implements type_database {
+    dbname: string;
     tables: { [key: string]: type_table };
     folder_path: string;
     storage_location: string;
@@ -411,10 +528,22 @@ export class database {
         this.output_file_path = `${this.storage_location}/_${dbname}.json`;
     }
 
-    add_table({ table_name, indices, primary_key }: { table_name: string, indices: string[], primary_key: string }) {
-        let new_table = new table({ table_name, indices, storage_location: this.storage_location, dbname: this.dbname, primary_key });
-        this.tables[table_name] = new_table;
-        return new_table;
+    add_table({ table_name, indices, primary_key, proto }: { table_name: string, indices: string[], primary_key: string, proto?:any }): type_table {
+        console.log('In add table', { table_name, indices, primary_key, tables: this.tables })
+
+        if (!table_name) {
+            throw new Error('Table name is required');
+        }
+
+        if (!this.tables.hasOwnProperty(table_name)) {
+            let new_table = new table({ table_name, indices, storage_location: this.storage_location, dbname: this.dbname, primary_key, proto });
+            this.tables[table_name] = new_table;
+            console.log('In add table', { new_table, tables: this.tables  })
+            return new_table as type_table;
+        }
+        else {
+            return this.tables[table_name] as type_table;
+        }
     }
 
     save_database = async () => {
@@ -433,34 +562,42 @@ export class database {
         // Ensure the directory exists where the file will be stored
         const dirname = path.dirname(this.output_file_path);
         await fs.mkdir(dirname, { recursive: true });
+        await fs.writeFile(this.output_file_path, data)
 
-
-        return Promise.all([tables.map(table => table.output_to_file()), fs.writeFile(this.output_file_path, data)]);
+        await Promise.all([tables.map(table => table.output_to_file())]);
     }
 
     read_from_file = async () => {
         console.log('Reading from file');
-        let data = await fs.readFile(this.output_file_path, 'utf-8');
-        let parsed_data = JSON.parse(data);
-        let { dbname, tables, storage_location } = parsed_data;
-    
-        this.dbname = dbname;
-        this.storage_location = storage_location;
-    
-        // Collecting promises for each table read operation
-        const tableReadPromises = tables.map((table_info: any) => {
-            let { table_name, indices, primary_key } = table_info;
-            // Assume add_table returns an instance with a read_from_file method
-            table_info.table_obj = this.add_table({ table_name, indices, primary_key });
-            // Start reading from file and return the promise to be awaited
-            return table_info.table_obj.read_from_file();
-        });
-    
-        // Wait for all table read operations to complete
-        await Promise.all(tableReadPromises);
-    
-        console.log('All tables have been read from file');
-    
+
+        try {
+            let data = await fs.readFile(this.output_file_path, 'utf-8');
+            let parsed_data = JSON.parse(data);
+            let { dbname, tables, storage_location } = parsed_data;
+
+            this.dbname = dbname;
+            this.storage_location = storage_location;
+
+            // Collecting promises for each table read operation
+            const tableReadPromises = tables.map((table_info: any) => {
+                let { table_name, indices, primary_key } = table_info;
+                // Assume add_table returns an instance with a read_from_file method
+                table_info.table_obj = this.add_table({ table_name, indices, primary_key, proto: null });
+                // Start reading from file and return the promise to be awaited
+                return table_info.table_obj.read_from_file();
+            });
+
+            // Wait for all table read operations to complete
+            await Promise.all(tableReadPromises);
+
+            console.log('All available tables have been read from file');
+
+        }
+        catch (error) {
+            console.log('Error reading from file', error, this.output_file_path)
+        }
+
+
         return;
     }
 }

@@ -14,10 +14,7 @@ export const distinct = (arr: any[]): any[] => {
 
 
 export const get_from_dict = (obj: any, key: string) => {
-    if (typeof key !== 'string') {
-        console.error(`Error in get_from_dict. Expected a string, got ${typeof key} for variable "key"`);
-        return null;
-    }
+    key = `${key}`.trim();
 
     let key_parts = key.split(".");
     let iter_obj = obj;
@@ -43,6 +40,7 @@ export const get_from_dict = (obj: any, key: string) => {
 };
 
 export const set = (obj: any, key: string, value: any) => {
+    key = `${key}`.trim();
     const keys = key.split('.');
     let current_obj = obj;
 

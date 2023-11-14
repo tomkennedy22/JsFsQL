@@ -11,6 +11,7 @@ export type type_results = {
               map_keys: { left_field?: string, right_field: string }): type_results;
     index_by(index_field: string): { [key: string]: any };
     group_by(group_by_field: string): { [key: string]: any };
+    first(): any;
 
 }[];
 

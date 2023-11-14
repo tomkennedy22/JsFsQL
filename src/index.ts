@@ -1,18 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
 import { type_database, type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_results, type_table } from "./types";
+import { distinct, get_from_dict, partition_name_from_partition_index, set } from "./utils";
 
-// Helper function to generate a partition name based on the partition index.
-// It converts the index into a string format suitable for file naming.
-const partition_name_from_partition_index = (partition_index: type_partition_index): string => {
-    return Object.entries(partition_index)
-        .map(([indexKey, indexValue]) => `${indexKey}_${indexValue}`)
-        .join('_') || 'default';
-}
-
-export const distinct = (arr: any[]): any[] => {
-    return [...new Set(arr)];
-};
 
 // The Partition class definition, implementing the Partition type.
 export class partition implements type_partition {
@@ -47,8 +37,6 @@ export class partition implements type_partition {
     insert(data: any[] | any): void {
         // Normalize data into an array for unified processing
         const dataToInsert = Array.isArray(data) ? data : [data];
-
-        console.log('In insert', { dataToInsert, data, dataIsArray: Array.isArray(data) })
 
         // Insert each row into the dataset using its primary key for identification
         dataToInsert.forEach((row) => {
@@ -393,7 +381,6 @@ export class table implements type_table {
         let filteredPartitions = partitions;
 
         for (const [query_function, query_value] of Object.entries(query_clause)) {
-            console.log('In index partition filter', { query_function, query_value })
             switch (query_function) {
                 case '$eq':
                     filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] === query_value);
@@ -427,8 +414,6 @@ export class table implements type_table {
             if (filteredPartitions.length === 0) break;
         }
 
-        console.log('In index partition filter', { filteredPartitions })
-
         return filteredPartitions;
     }
 
@@ -439,7 +424,6 @@ export class table implements type_table {
         let primary_key_list, gt_primary_key_list, partition_name_set: Set<string>;
 
         for (const [query_function, query_value] of Object.entries(query_clause)) {
-            console.log('In primary key partition filter', { query_function, query_value })
             switch (query_function) {
                 case '$eq':
                     let chosen_partition = this.partitions_by_partition_name[this.partition_name_by_primary_key[query_value]]
@@ -488,8 +472,6 @@ export class table implements type_table {
             // If there are no partitions left after filtering with a query function, break early
             if (filteredPartitions.length === 0) break;
         }
-
-        console.log('End of primary key partition filter', { filteredPartitions })
 
         return filteredPartitions;
     }
@@ -540,17 +522,12 @@ export class table implements type_table {
 
         if (query[this.primary_key]) {
             let query_clause = query[this.primary_key] as type_query_clause;
-            console.log('In find, query has pk', { query_clause, query })
             valid_partitions = this.primary_key_partition_filter(valid_partitions, query_clause);
-            console.log('In find, query has pk', { query_clause, query, valid_partitions })
         }
-
-        // console.log('Valid partitions', { valid_partitions })
 
         for (let index_name of this.indices) {
             if (query[index_name]) {
                 let query_clause = query[index_name] as type_query_clause;
-                // console.log('Has clause for index', { index_name, query_clause })
                 valid_partitions = this.index_partition_filter(valid_partitions, index_name, query_clause);
 
                 delete query[index_name];
@@ -606,7 +583,6 @@ export class database implements type_database {
     }
 
     add_table({ table_name, indices, primary_key, proto }: { table_name: string, indices: string[], primary_key: string, proto?: any }): type_table {
-        console.log('In add table', { table_name, indices, primary_key, tables: this.tables })
 
         if (!table_name) {
             throw new Error('Table name is required');
@@ -615,7 +591,6 @@ export class database implements type_database {
         if (!this.tables.hasOwnProperty(table_name)) {
             let new_table = new table({ table_name, indices, storage_location: this.storage_location, dbname: this.dbname, primary_key, proto });
             this.tables[table_name] = new_table;
-            console.log('In add table', { new_table, tables: this.tables })
             return new_table as type_table;
         }
         else {
@@ -702,19 +677,26 @@ export class results extends Array implements type_results {
         let right_key = join_keys.right_key;
 
         let left_dataset = this;
+        // if (map_style == 'child_array_cross_join'){
+        //     left_dataset = left_dataset.;
+        // }
+
         let right_dataset_rows: results;
         if (right_dataset instanceof table) {
-            right_dataset_rows = right_dataset.find() as results;
-            console.log('In left join, rightdataset is table', { right_dataset_rows, t: typeof right_dataset, i: right_dataset instanceof table, right_dataset })
+            //TODO - speed up by being index-aware w/ parent
+            let right_dataset_indices = right_dataset.indices;
+            let right_query: type_query = {};
+            right_dataset_indices.forEach((index_name: string) => {
+                if (left_dataset.first() && left_dataset.first().hasOwnProperty(index_name)) {
+                    set(right_query, index_name, { $in: distinct(left_dataset.map(row => get_from_dict(row, index_name))) })
+                }
+            });
+
+            right_dataset_rows = right_dataset.find(right_query) as results;
         }
         else {
             right_dataset_rows = right_dataset as results;
         }
-
-        console.log('In left join', { t: typeof right_dataset_rows, i: right_dataset_rows instanceof results, right_dataset_rows })
-        console.log('types', {
-            right_is_table: right_dataset instanceof table, right_dataset_rows, right_dataset, typeof_right_dataset: typeof right_dataset, typeof_right_dataset_rows: typeof right_dataset_rows,
-        })
 
         let right_dataset_groups = right_dataset_rows.group_by(right_key);
         let resulting_dataset = new results();
@@ -725,11 +707,8 @@ export class results extends Array implements type_results {
 
         if (map_style === 'cross_join') {
             let left_dataset_groups = this.group_by(left_key);
-            console.log('In cross_join', { left_dataset_groups, right_dataset_groups })
             left_dataset_groups.forEach((left_rows, left_row_key) => {
                 let right_rows = right_dataset_groups.get(left_row_key) || [null];
-
-                console.log('In cross_join left loop', { left_row_key, left_rows, right_rows })
 
                 left_rows.forEach((left_row: any) => {
                     right_rows.forEach((right_row: any) => {
@@ -745,10 +724,10 @@ export class results extends Array implements type_results {
 
             let left_dataset = this;
             left_dataset.forEach((left_row: any) => {
-                let left_row_key = left_row[left_key];
+                let left_row_key = get_from_dict(left_row, left_key);
                 let right_rows = right_dataset_groups.get(left_row_key) || [null];
                 let new_row = left_row;
-                new_row[right_field] = right_rows;
+                set(new_row, right_field, right_rows);
                 resulting_dataset.push(new_row);
             })
         }
@@ -757,10 +736,10 @@ export class results extends Array implements type_results {
             let left_dataset = this;
             let right_dataset_index = right_dataset_rows.index_by(right_key);
             left_dataset.forEach((left_row: any) => {
-                let left_row_key = left_row[left_key];
+                let left_row_key = get_from_dict(left_row, left_key);
                 let right_row = right_dataset_index.get(left_row_key) || null;
                 let new_row = left_row;
-                new_row[right_field] = right_row;
+                set(new_row, right_field, right_row);
                 resulting_dataset.push(new_row);
             })
         }
@@ -776,7 +755,7 @@ export class results extends Array implements type_results {
     index_by(index_field: string) {
         let index = new Map();
         for (let row of this) {
-            index.set(row[index_field], row);
+            index.set(get_from_dict(row, index_field), row);
         }
 
         return index;
@@ -785,7 +764,7 @@ export class results extends Array implements type_results {
     group_by(group_by_field: string): Map<any, any[]> {
         let groups = new Map();
         for (let row of this) {
-            let group_by_value = row[group_by_field];
+            let group_by_value = get_from_dict(row, group_by_field);
             if (!groups.has(group_by_value)) {
                 groups.set(group_by_value, []);
             }
@@ -793,5 +772,13 @@ export class results extends Array implements type_results {
         }
 
         return groups;
+    }
+
+    first(): any {
+        if (this.length == 0) {
+            return null;
+        }
+
+        return this[0];
     }
 }

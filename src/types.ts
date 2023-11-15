@@ -25,7 +25,7 @@ export type type_partition = {
     primary_key: string;
     is_dirty: boolean;
     insert: (data: any) => void;
-    update: (data: any[] | any) => void;
+    update: (data: any[] | any, fields_to_drop?: any[]) => void;
     write_to_file: () => Promise<void>;
     delete_file: () => Promise<void>;
 }
@@ -53,7 +53,7 @@ export type type_table = {
     next_id: () => number;
     count: () => number;
     insert: (data: any[] | any) => void;
-    update: (data: any[] | any) => void;
+    update: (data: any[] | any, fields_to_drop?: any[]) => void;
     find: (query?: type_loose_query) => results;
     findOne: (query?: type_loose_query) => any;
     output_to_file: () => Promise<void>;

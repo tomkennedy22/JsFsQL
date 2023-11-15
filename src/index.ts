@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { type_database, type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_results, type_table } from "./types";
-import { distinct, get_from_dict, partition_name_from_partition_index, set } from "./utils";
+import { distinct, get_from_dict, partition_name_from_partition_index, set, deep_copy } from "./utils";
 
 
 // The Partition class definition, implementing the Partition type.
@@ -55,14 +55,25 @@ export class partition implements type_partition {
 
     }
 
-    update(row: any): void {
+    update(row: any, fields_to_drop?: any[]): void {
         const rowPk = row[this.primary_key];
         if (!this.data.hasOwnProperty(rowPk)) {
             throw new Error(`Row with primary key ${rowPk} does not exist in partition ${this.partition_name}.`);
         }
 
+        // Drop fields if necessary
+        if (fields_to_drop) {
+            let copied_row = deep_copy(row);
+            for (const field of fields_to_drop) {
+                delete copied_row[field];
+            }
+            this.data[rowPk] = copied_row;
+        }
+        else {
+            this.data[rowPk] = row;
+        }
+
         // Update the row and mark partition as dirty
-        this.data[rowPk] = row;
         this.is_dirty = true;
     }
 
@@ -268,7 +279,7 @@ export class table implements type_table {
         }
     }
 
-    update(data: any[] | any): void {
+    update(data: any[] | any, fields_to_drop?: any[]): void {
         if (!Array.isArray(data)) {
             data = [data];
         }
@@ -283,7 +294,7 @@ export class table implements type_table {
             // Find partition name using the primary key
             const partitionName = this.partition_name_by_primary_key[rowPk];
             if (!partitionName) {
-                console.log('In update with error', { row, rowPk, partitionName, partition_name_by_primary_key: this.partition_name_by_primary_key })
+                // console.log('In update with error', { row, rowPk, partitionName, partition_name_by_primary_key: this.partition_name_by_primary_key })
                 throw new Error(`Row with primary key ${rowPk} does not exist and cannot be updated.`);
             }
 
@@ -294,7 +305,7 @@ export class table implements type_table {
             }
 
             // Update the row within the partition if it exists
-            partition.update(row);
+            partition.update(row, fields_to_drop);
         }
     }
 
@@ -550,6 +561,8 @@ export class table implements type_table {
             rows = this.filter(rows, query_key, query_clause);
         }
 
+        // rows = rows.map(row => deep_copy(row));
+
         return new results(rows);
     }
 
@@ -757,10 +770,15 @@ export class results extends Array implements type_results {
         return resulting_dataset;
     }
 
+    make_copy() {
+        return new results(this.map(row => deep_copy(row)));
+    }
+
     index_by(index_field: string) {
         let index = new Map();
         for (let row of this) {
             let index_value = get_from_dict(row, index_field);
+            // set(index, index_value, deep_copy(row));
             set(index, index_value, row);
         }
 
@@ -779,6 +797,7 @@ export class results extends Array implements type_results {
             let group = get_from_dict(groups, group_by_value);
             // console.log('Group by', { group_by_value, group, groups, row, group_by_field })
             group.push(row);
+            // group.push(deep_copy(row));
         }
 
         return groups;

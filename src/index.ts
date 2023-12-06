@@ -104,14 +104,14 @@ export class partition implements type_partition {
     }
 
     read_from_file = async () => {
-        // console.trace('Reading from file')
+        // // console.trace('Reading from file')
         try {
             let data = await fs.readFile(this.output_file_path, 'utf-8');
             let parsed_data = JSON.parse(data);
 
             let { partition_name, partition_indices, data: partition_data, storage_location, primary_key } = parsed_data;
 
-            // console.log({ partition_name, partition_indices, partition_data, storage_location, primary_key })
+            // // console.log({ partition_name, partition_indices, partition_data, storage_location, primary_key })
 
             this.partition_name = partition_name;
             this.partition_indices = partition_indices;
@@ -124,7 +124,7 @@ export class partition implements type_partition {
             return Promise.resolve();
         }
         catch (error) {
-            console.log('Error reading from file', error, this.output_file_path)
+            // console.log('Error reading from file', error, this.output_file_path)
         }
     }
 
@@ -134,7 +134,7 @@ export class partition implements type_partition {
 
             // Delete the file associated with this partition
             await fs.unlink(this.output_file_path);
-            console.log(`Deleted file at: ${this.output_file_path}`);
+            // console.log(`Deleted file at: ${this.output_file_path}`);
         } catch (error) {
             // Handle possible errors, such as file not existing
             console.error(`Error deleting file at: ${this.output_file_path}`, error);
@@ -192,14 +192,14 @@ export class table implements type_table {
     }
 
     read_from_file = async () => {
-        console.trace('Reading from file')
+        // console.trace('Reading from file')
         try {
             let data = await fs.readFile(this.output_file_path, 'utf-8');
             let parsed_data = JSON.parse(data);
 
             let { table_name, indices, primary_key, partition_names, storage_location } = parsed_data;
 
-            console.log({ table_name, indices, primary_key, partition_names, storage_location })
+            // console.log({ table_name, indices, primary_key, partition_names, storage_location })
 
             this.table_name = table_name;
             this.indices = indices;
@@ -208,7 +208,7 @@ export class table implements type_table {
 
             // Collecting promises for each partition read operation
             const partitionReadPromises = partition_names.map(async (partition_name: string) => {
-                console.log('Reading partition', { partition_name });
+                // console.log('Reading partition', { partition_name });
                 let partition_data = await fs.readFile(`${storage_location}/${partition_name}.json`, 'utf-8');
                 let parsed_partition_data = JSON.parse(partition_data);
                 let { partition_indices, data } = parsed_partition_data;
@@ -229,13 +229,13 @@ export class table implements type_table {
             // Wait for all partition read operations to complete
             await Promise.all(partitionReadPromises);
 
-            console.log('All partitions have been read from file');
+            // console.log('All partitions have been read from file');
 
             Promise.resolve();
 
         }
         catch (error) {
-            console.log('Error reading from file', error, this.output_file_path)
+            // console.log('Error reading from file', error, this.output_file_path)
         }
     }
 
@@ -254,7 +254,7 @@ export class table implements type_table {
             let row_pk = row[this.primary_key]; // Capture the primary key value from the row
 
             let partition_indices: type_partition_index = {};
-            // console.log('In insert', { row, indices: this.indices })
+            // // console.log('In insert', { row, indices: this.indices })
             // Generate partition index keys from the row based on the table indices
             this.indices.forEach(index_name => {
                 partition_indices[index_name] = row[index_name];
@@ -294,7 +294,7 @@ export class table implements type_table {
             // Find partition name using the primary key
             const partitionName = this.partition_name_by_primary_key[rowPk];
             if (!partitionName) {
-                // console.log('In update with error', { row, rowPk, partitionName, partition_name_by_primary_key: this.partition_name_by_primary_key })
+                // // console.log('In update with error', { row, rowPk, partitionName, partition_name_by_primary_key: this.partition_name_by_primary_key })
                 throw new Error(`Row with primary key ${rowPk} does not exist and cannot be updated.`);
             }
 
@@ -346,7 +346,9 @@ export class table implements type_table {
      * @returns Filtered data array.
      */
     filter(data: any[], query_field: string, query_clause: type_query_clause): any[] {
+        if (!query_clause || Object.keys(query_clause).length === 0) return data;
         return data.filter((row: any) => {
+            // console.log('In filter', { row, query_field, query_clause })
             for (const [query_function, query_value] of Object.entries(query_clause)) {
                 switch (query_function) {
                     case '$eq':
@@ -366,6 +368,9 @@ export class table implements type_table {
                         break;
                     case '$lte':
                         if (!(row[query_field] <= query_value)) return false;
+                        break;
+                    case '$between':
+                        if (!(row[query_field] >= query_value[0]) || (!row[query_field] <= query_value[1])) return false;
                         break;
                     case '$in':
                         if (!query_value.includes(row[query_field])) return false;
@@ -410,6 +415,9 @@ export class table implements type_table {
                     break;
                 case '$lte':
                     filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] <= query_value);
+                    break;
+                case '$between':
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] >= query_value[0] && partition.partition_indices[index_name] <= query_value[1]);
                     break;
                 case '$in':
                     filteredPartitions = filteredPartitions.filter(partition => query_value.includes(partition.partition_indices[index_name]));
@@ -468,6 +476,12 @@ export class table implements type_table {
                     partition_name_set = new Set(gt_primary_key_list.map(pk => this.partition_name_by_primary_key[pk]));
                     filteredPartitions = filteredPartitions.filter(partition => partition_name_set.has(partition.partition_name));
                     break;
+                case '$between':
+                    primary_key_list = Object.keys(this.partition_name_by_primary_key);
+                    gt_primary_key_list = primary_key_list.filter(pk => pk >= query_value[0] && pk <= query_value[1]);
+                    partition_name_set = new Set(gt_primary_key_list.map(pk => this.partition_name_by_primary_key[pk]));
+                    filteredPartitions = filteredPartitions.filter(partition => partition_name_set.has(partition.partition_name));
+                    break;
                 case '$in':
                     partition_name_set = new Set(query_value.map((pk: any) => this.partition_name_by_primary_key[pk]));
                     filteredPartitions = filteredPartitions.filter(partition => partition_name_set.has(partition.partition_name));
@@ -485,6 +499,33 @@ export class table implements type_table {
         }
 
         return filteredPartitions;
+    }
+
+    delete = async (query?: type_loose_query) => {
+
+        if (!query) {
+            await this.clear();
+            return Promise.resolve();
+        }
+
+        let rows = this.find(query);
+
+        console.log('rows to delete', {t:this, rows, query})
+
+        for (let row of rows) {
+            let row_pk = row[this.primary_key];
+            let partition_name = this.partition_name_by_primary_key[row_pk];
+            let partition = this.partitions_by_partition_name[partition_name];
+
+            console.log('deleting row', {row_pk, partition_name, partition})
+
+            partition.is_dirty = true;
+
+            delete partition.data[row_pk];
+            delete this.partition_name_by_primary_key[row_pk];
+        }
+
+        return Promise.resolve();
     }
 
     clear = async () => {
@@ -633,7 +674,7 @@ export class database implements type_database {
     }
 
     read_from_file = async () => {
-        console.log('Reading from file');
+        // console.log('Reading from file');
 
         try {
             let data = await fs.readFile(this.output_file_path, 'utf-8');
@@ -655,11 +696,11 @@ export class database implements type_database {
             // Wait for all table read operations to complete
             await Promise.all(tableReadPromises);
 
-            console.log('All available tables have been read from file');
+            // console.log('All available tables have been read from file');
 
         }
         catch (error) {
-            console.log('Error reading from file', error, this.output_file_path)
+            // console.log('Error reading from file', error, this.output_file_path)
         }
 
 
@@ -736,15 +777,15 @@ export class results extends Array implements type_results {
         else if (map_style == 'nest_children') {
 
             let left_dataset = this;
-            // console.log('Nest children', { left_dataset, right_dataset_groups })
+            // // console.log('Nest children', { left_dataset, right_dataset_groups })
 
             left_dataset.forEach((left_row: any) => {
                 let left_row_value = get_from_dict(left_row, left_key);
                 let right_rows = get_from_dict(right_dataset_groups, left_row_value) || [null];
                 let new_row = left_row;
-                // console.log('Nest children', { left_row, left_key, left_row_value, right_rows, right_field, right_dataset_groups })
+                // // console.log('Nest children', { left_row, left_key, left_row_value, right_rows, right_field, right_dataset_groups })
                 set(new_row, right_field, right_rows);
-                // console.log('Nest child', { new_row, left_row, left_row_key, right_rows,right_field })
+                // // console.log('Nest child', { new_row, left_row, left_row_key, right_rows,right_field })
                 resulting_dataset.push(new_row);
             })
         }
@@ -790,12 +831,12 @@ export class results extends Array implements type_results {
         for (let row of this) {
             let group_by_value = get_from_dict(row, group_by_field);
             // if (!groups.has(group_by_value)) {
-            // console.log('Group by 1', { group_by_value, groups, row, group_by_field, gfd: get_from_dict(groups, group_by_value) })
+            // // console.log('Group by 1', { group_by_value, groups, row, group_by_field, gfd: get_from_dict(groups, group_by_value) })
             if (!get_from_dict(groups, group_by_value)) {
                 set(groups, group_by_value, [])
             }
             let group = get_from_dict(groups, group_by_value);
-            // console.log('Group by', { group_by_value, group, groups, row, group_by_field })
+            // // console.log('Group by', { group_by_value, group, groups, row, group_by_field })
             group.push(row);
             // group.push(deep_copy(row));
         }
@@ -811,4 +852,5 @@ export class results extends Array implements type_results {
 
         return this[0];
     }
+
 }

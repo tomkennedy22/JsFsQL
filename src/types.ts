@@ -54,6 +54,7 @@ export type type_table = {
     count: () => number;
     insert: (data: any[] | any) => void;
     update: (data: any[] | any, fields_to_drop?: any[]) => void;
+    delete: (query?: type_loose_query) => void;
     find: (query?: type_loose_query) => results;
     findOne: (query?: type_loose_query) => any;
     output_to_file: () => Promise<void>;

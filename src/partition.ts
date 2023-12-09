@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { type_partition, type_partition_index } from "./types";
-import { deep_copy, partition_name_from_partition_index } from "./utils";
+import { deep_copy, get_from_dict, partition_name_from_partition_index, set_to_dict } from "./utils";
 
 // The Partition class definition, implementing the Partition type.
 export class partition implements type_partition {
@@ -39,14 +39,14 @@ export class partition implements type_partition {
 
         // Insert each row into the dataset using its primary key for identification
         dataToInsert.forEach((row) => {
-            const rowPk = row[this.primary_key];
+            const rowPk = get_from_dict(row, this.primary_key);
             if (rowPk === undefined) {
                 throw new Error(`Primary key value missing in the data row. Cannot insert into partition. Table ${this.partition_name} and primary key ${this.primary_key} and value ${rowPk}`);
             }
             else if (this.data.hasOwnProperty(rowPk)) {
                 throw new Error(`Duplicate primary key value: ${rowPk} for field ${this.primary_key} in partition ${this.partition_name}`);
             }
-            this.data[rowPk] = row;
+            set_to_dict(this.data, rowPk, row);
 
             // Mark the dataset as 'dirty' to indicate that the state has changed   
             this.is_dirty = true;
@@ -55,7 +55,7 @@ export class partition implements type_partition {
     }
 
     update(row: any, fields_to_drop?: any[]): void {
-        const rowPk = row[this.primary_key];
+        const rowPk = get_from_dict(row, this.primary_key);
         if (!this.data.hasOwnProperty(rowPk)) {
             throw new Error(`Row with primary key ${rowPk} does not exist in partition ${this.partition_name}.`);
         }
@@ -66,10 +66,10 @@ export class partition implements type_partition {
             for (const field of fields_to_drop) {
                 delete copied_row[field];
             }
-            this.data[rowPk] = copied_row;
+            set_to_dict(this.data, rowPk, copied_row);
         }
         else {
-            this.data[rowPk] = row;
+            set_to_dict(this.data, rowPk, row);
         }
 
         // Update the row and mark partition as dirty

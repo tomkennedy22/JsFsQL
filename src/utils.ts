@@ -13,40 +13,39 @@ export const distinct = (arr: any[]): any[] => {
     return [...new Set(arr)];
 };
 
+export const get_from_dict = (obj: object | Map<any, any>, key: string): any => {
+    const keyParts = key.split('.');
+    let current: any = obj;
 
-export const get_from_dict = (obj: any, key: string) => {
-    key = `${key}`.trim();
+    for (let i = 0; i < keyParts.length; i++) {
+        const part = keyParts[i];
 
-    let key_parts = key.split(".");
-    let iter_obj = obj;
-    let loop_count = 0;
-    let max_loop = key_parts.length;
-    if (max_loop == 1){
-        return obj[key];
-    }
-    // else if (max_loop > 1) {
-    //     console.log('get_from_dict', {key_parts, key, iter_obj, loop_count, max_loop})
-    // }
-    for (let key_part of key_parts) {
-        loop_count += 1;
-        if (loop_count == max_loop) {
-            if (key_part in iter_obj) {
-                return iter_obj[key_part];
+        // Check if current is a Map and get the value
+        if (current instanceof Map) {
+            if (!current.has(part)) {
+                return null; // Key not found in Map
             }
+            current = current.get(part);
+        }
+        // Check if current is an object and get the value
+        else if (typeof current === 'object' && current !== null) {
+            if (!(part in current)) {
+                return null; // Key not found in object
+            }
+            current = current[part];
+        }
+        // If current is neither an object nor a Map
+        else {
             return null;
         }
-        if (typeof iter_obj === "object") {
-            if (iter_obj[key_part]) {
-                iter_obj = iter_obj[key_part];
-                continue;
-            } else {
-                return null;
-            }
-        }
     }
-};
 
-export const set = (obj: any, key: string, value: any) => {
+    return current;
+}
+
+
+
+export const set_to_dict = (obj: any, key: string, value: any) => {
     key = `${key}`.trim();
     const keys = key.split('.');
     let current_obj = obj;

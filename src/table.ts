@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_table } from "./types";
-import { partition_name_from_partition_index } from "./utils";
+import { get_from_dict, partition_name_from_partition_index } from "./utils";
 import { partition } from "./partition";
 import { results } from "./results";
 
@@ -111,13 +111,14 @@ export class table implements type_table {
 
         // Process each row for insertion into its partition
         for (let row of data) {
-            let row_pk = row[this.primary_key]; // Capture the primary key value from the row
+
+            let row_pk = get_from_dict(row, this.primary_key); // Capture the primary key value from the row
 
             let partition_indices: type_partition_index = {};
             // // console.log('In insert', { row, indices: this.indices })
             // Generate partition index keys from the row based on the table indices
             this.indices.forEach(index_name => {
-                partition_indices[index_name] = row[index_name];
+                partition_indices[index_name] = get_from_dict(row, index_name);
             });
 
             // Determine the partition name from the indices for row placement
@@ -146,20 +147,20 @@ export class table implements type_table {
 
         for (const row of data) {
             // Retrieve primary key value from the row
-            const rowPk = row[this.primary_key];
+            const rowPk = get_from_dict(row, this.primary_key);
             if (rowPk === undefined) {
                 throw new Error(`Primary key value missing in the data row. Cannot update.`);
             }
 
             // Find partition name using the primary key
-            const partitionName = this.partition_name_by_primary_key[rowPk];
+            const partitionName = this.partition_name_by_primary_key[ rowPk];
             if (!partitionName) {
                 // // console.log('In update with error', { row, rowPk, partitionName, partition_name_by_primary_key: this.partition_name_by_primary_key })
                 throw new Error(`Row with primary key ${rowPk} does not exist and cannot be updated.`);
             }
 
             // Retrieve the corresponding partition
-            const partition = this.partitions_by_partition_name[partitionName];
+            const partition = this.partitions_by_partition_name[ partitionName];
             if (!partition) {
                 throw new Error(`Partition ${partitionName} does not exist. Cannot update row with primary key ${rowPk}.`);
             }
@@ -373,7 +374,7 @@ export class table implements type_table {
         console.log('rows to delete', { t: this, rows, query })
 
         for (let row of rows) {
-            let row_pk = row[this.primary_key];
+            let row_pk = get_from_dict(row, this.primary_key);
             let partition_name = this.partition_name_by_primary_key[row_pk];
             let partition = this.partitions_by_partition_name[partition_name];
 

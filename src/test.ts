@@ -11,11 +11,7 @@ const test = async () => {
     let db = new database({ dbname: "test_db", folder_path });
     // await db.read_from_file();
 
-    console.log({ db })
-    console.log({ persion: db.tables.person })
-
-
-    db.add_table({ table_name: "person", indices: ["birth_year"], primary_key: "person_id" });
+    db.add_table({ table_name: "person", indices: ["birth_year", "birth_place.birth_state"], primary_key: "person_id" });
 
     let data = [{ "person_id": 1, "birth_year": 1990, "birth_place": { "birth_state": "Kentucky"}, "hair_color": "Fuscia", "name": "Basia" },
     { "person_id": 2, "birth_year": 1999, "birth_place": { "birth_state": "Washington"}, "hair_color": "Green", "name": "Brynn" },
@@ -1036,7 +1032,7 @@ const test = async () => {
     db.tables.state.insert(state_data);
 
     let results = (db.tables.state.find({ region: "West" }) as results)
-        .left_join(db.tables.person.find(), { left_key: "state", right_key: "birth_place.birth_state" }, 'cross_join', { left_field: "state", right_field: "person" })
+        .left_join(db.tables.person.find(), { left_key: "state", right_key: "birth_place.birth_state" }, 'cross_join', { left_field: "state", right_field: "people" })
     console.log({ results })
 
     let results_2 = (db.tables.state.find({ region: "South" }) as results)
@@ -1047,6 +1043,9 @@ const test = async () => {
     let results_3 = db.tables.state.find({ region: "South" })
         .left_join(db.tables.person.find({hair_color: "Red"}), { left_key: "state", right_key: "birth_place.birth_state" }, 'nest_children', { right_field: "people" })
     console.log({ results_3 })
+
+    let results_ca = db.tables.person.find({ 'birth_place.birth_state': "California" })
+    console.log({ results_ca })
 
     await db.save_database()
 }

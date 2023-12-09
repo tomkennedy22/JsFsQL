@@ -1,4 +1,4 @@
-import { results } from ".";
+import { results } from "./results";
 
 // Type alias for a partition index, which is a map of keys to arbitrary values.
 export type type_partition_index = { [key: string]: any };

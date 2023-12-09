@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "dayjs": "^1.11.10",
+    "flatted": "^3.2.9",
     "typescript": "^5.2.2"
   }
 }

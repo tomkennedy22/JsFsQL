@@ -1,4 +1,5 @@
-import { database, results } from "./index";
+import { database } from "./database";
+import { results } from "./results";
 import fs from "fs/promises";
 import path from "path";
 
@@ -1035,36 +1036,17 @@ const test = async () => {
     db.tables.state.insert(state_data);
 
     let results = (db.tables.state.find({ region: "West" }) as results)
-        .left_join(db.tables.person, { left_key: "state", right_key: "birth_place.birth_state" }, 'cross_join', { left_field: "state", right_field: "person" })
+        .left_join(db.tables.person.find(), { left_key: "state", right_key: "birth_place.birth_state" }, 'cross_join', { left_field: "state", right_field: "person" })
     console.log({ results })
 
-
     let results_2 = (db.tables.state.find({ region: "South" }) as results)
-        .left_join(db.tables.person, { left_key: "state", right_key: "birth_place.birth_state" }, 'nest_children', { left_field: "state", right_field: "people" })
+        .left_join(db.tables.person.find(), { left_key: "state", right_key: "birth_place.birth_state" }, 'nest_children', { left_field: "state", right_field: "people" })
     console.log({ results_2 })
 
 
     let results_3 = db.tables.state.find({ region: "South" })
         .left_join(db.tables.person.find({hair_color: "Red"}), { left_key: "state", right_key: "birth_place.birth_state" }, 'nest_children', { right_field: "people" })
     console.log({ results_3 })
-
-
-    // let results_1994_CA = db.tables.person.find({birth_year: 1994, birth_state: "CA"});
-    // let results_1994 = db.tables.person.find({birth_year: 1994});
-    // let results_CA = db.tables.person.find({birth_state: "CA"});
-    // let results_pid_1 = db.tables.person.findOne({person_id: 1});
-    // let results_pid_1_eq = db.tables.person.findOne({ person_id: { $eq: 1 } });
-    // let results_matts = db.tables.person.find({name: "Matt"});
-    // let results_matt = db.tables.person.findOne({name: "Matt"});
-
-    // console.log({results_1994_CA, results_1994, results_CA, results_matts, results_matt, results_pid_1, results_pid_1_eq})
-
-    // let results_1990_1994 = db.tables.person.find({$or: [{birth_year: 1990}, {birth_year: 1994}]});
-    // let results_gt_1992 = db.tables.person.find({birth_year: {$gt: 1992}});
-    // let results_gte_1993 = db.tables.person.find({birth_year: {$gte: 1993}});
-
-    // console.log({results_1990_1994, results_gt_1992, results_gte_1993, results_pid_1, results_pid_1_eq})
-    // console.log({ results_pid_1_eq })
 
     await db.save_database()
 }

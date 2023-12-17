@@ -3,8 +3,10 @@ import path from "path";
 import { type_partition, type_partition_index } from "./types";
 import { deep_copy, get_from_dict, partition_name_from_partition_index, set_to_dict } from "./utils";
 
+type PartitionData<T extends object> = { [key: string]: T };
+
 // The Partition class definition, implementing the Partition type.
-export class partition implements type_partition {
+export class partition<T extends object> implements type_partition {
     partition_name: string;
     partition_indices: type_partition_index;
     storage_location: string;
@@ -15,7 +17,7 @@ export class partition implements type_partition {
     is_dirty: boolean = true; // Default is_dirty to true to indicate the partition requires saving upon creation.
 
     // Constructor to initialize a new partition with given properties.
-    constructor({ storage_location, partition_indices, primary_key, proto }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: any }) {
+    constructor({ storage_location, partition_indices, primary_key, proto }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T }) {
         this.partition_indices = partition_indices;
         this.primary_key = primary_key;
         this.proto = proto;
@@ -33,7 +35,7 @@ export class partition implements type_partition {
      * It also flags the dataset as 'dirty' to indicate that changes have been made since the last save or update.
      * @param {any[] | any} data - The new data to be inserted, either a single object or an array of objects.
      */
-    insert(data: any[] | any): void {
+    insert(data: T[] | T): void {
         // Normalize data into an array for unified processing
         const dataToInsert = Array.isArray(data) ? data : [data];
 
@@ -54,7 +56,7 @@ export class partition implements type_partition {
 
     }
 
-    update(row: any, fields_to_drop?: any[]): void {
+    update(row: T, fields_to_drop?: any[]): void {
         const rowPk = get_from_dict(row, this.primary_key);
         if (!this.data.hasOwnProperty(rowPk)) {
             throw new Error(`Row with primary key ${rowPk} does not exist in partition ${this.partition_name}.`);

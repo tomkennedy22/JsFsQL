@@ -6,7 +6,7 @@ import { partition } from "./partition";
 import { results } from "./results";
 
 
-export class table implements type_table {
+export class table<T extends object> implements type_table {
     table_name: string;
     indices: string[];
     storage_location: string;
@@ -103,7 +103,7 @@ export class table implements type_table {
      * Inserts data into the index.
      * @param data Array of objects, each representing a row to be inserted, keyed by index fields.
      */
-    insert(data: any[] | any) {
+    insert(data: T[] | T) {
 
         if (!Array.isArray(data)) {
             data = [data];
@@ -140,7 +140,7 @@ export class table implements type_table {
         }
     }
 
-    update(data: any[] | any, fields_to_drop?: any[]): void {
+    update(data: T[] | T, fields_to_drop?: any[]): void {
         if (!Array.isArray(data)) {
             data = [data];
         }
@@ -206,38 +206,38 @@ export class table implements type_table {
      * @param query_clause Object defining the query operations and values.
      * @returns Filtered data array.
      */
-    filter(data: any[], query_field: string, query_clause: type_query_clause): any[] {
+    filter(data: T[], query_field: string, query_clause: type_query_clause): T[] {
         if (!query_clause || Object.keys(query_clause).length === 0) return data;
-        return data.filter((row: any) => {
+        return data.filter((row: T) => {
             // console.log('In filter', { row, query_field, query_clause })
             for (const [query_function, query_value] of Object.entries(query_clause)) {
                 switch (query_function) {
                     case '$eq':
-                        if (row[query_field] !== query_value) return false;
+                        if (get_from_dict(row, query_field) !== query_value) return false;
                         break;
                     case '$ne':
-                        if (row[query_field] === query_value) return false;
+                        if (get_from_dict(row, query_field) === query_value) return false;
                         break;
                     case '$gt':
-                        if (!(row[query_field] > query_value)) return false;
+                        if (!(get_from_dict(row, query_field) > query_value)) return false;
                         break;
                     case '$gte':
-                        if (!(row[query_field] >= query_value)) return false;
+                        if (!(get_from_dict(row, query_field) >= query_value)) return false;
                         break;
                     case '$lt':
-                        if (!(row[query_field] < query_value)) return false;
+                        if (!(get_from_dict(row, query_field) < query_value)) return false;
                         break;
                     case '$lte':
-                        if (!(row[query_field] <= query_value)) return false;
+                        if (!(get_from_dict(row, query_field) <= query_value)) return false;
                         break;
                     case '$between':
-                        if (!(row[query_field] >= query_value[0]) || (!row[query_field] <= query_value[1])) return false;
+                        if (!(get_from_dict(row, query_field) >= query_value[0]) || (!get_from_dict(row, query_field) <= query_value[1])) return false;
                         break;
                     case '$in':
-                        if (!query_value.includes(row[query_field])) return false;
+                        if (!query_value.includes(get_from_dict(row, query_field))) return false;
                         break;
                     case '$nin':
-                        if (query_value.includes(row[query_field])) return false;
+                        if (query_value.includes(get_from_dict(row, query_field))) return false;
                         break; default:
                         throw new Error(`Unsupported query function: ${query_function}`);
                 }
@@ -415,14 +415,14 @@ export class table implements type_table {
         return Object.keys(this.partition_name_by_primary_key).length;
     }
 
-    find(input_query?: type_loose_query): results {
+    find(input_query?: type_loose_query): results<T> {
 
         if (!input_query) {
             return new results(Object.values(this.partitions_by_partition_name).map(partition => Object.values(partition.data)).flat());
         }
 
         if (input_query.hasOwnProperty('$or')) {
-            let result_set = new results();
+            let result_set = new results<T>();
             for (let subquery of input_query['$or']) {
                 result_set.push(...this.find(subquery));
             }
@@ -468,7 +468,7 @@ export class table implements type_table {
         return new results(rows);
     }
 
-    findOne(query?: type_loose_query) {
+    findOne(query?: type_loose_query): T | null {
 
         let data = this.find(query);
         if (data.length == 0) {

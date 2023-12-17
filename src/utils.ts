@@ -10,11 +10,17 @@ export const partition_name_from_partition_index = (partition_index: type_partit
 }
 
 export const distinct = (arr: any[]): any[] => {
-    return [...new Set(arr)];
+    return arr.reduce((acc: any[], current: any) => {
+        if (!acc.some(item => is_deep_equal(item, current))) {
+            acc.push(current);
+        }
+        return acc;
+    }, []);
 };
 
-export const get_from_dict = (obj: object | Map<any, any>, key: string): any => {
-    const keyParts = key.split('.');
+
+export const get_from_dict = (obj: object, key: string): any => {
+    let keyParts: string[] = String(key).split('.');;
     let current: any = obj;
 
     for (let i = 0; i < keyParts.length; i++) {
@@ -44,26 +50,39 @@ export const get_from_dict = (obj: object | Map<any, any>, key: string): any => 
 }
 
 
-
-export const set_to_dict = (obj: any, key: string, value: any) => {
+export const set_to_dict = (container: { [key: string]: any } | Map<any, any>, key: string, value: any) => {
     key = `${key}`.trim();
     const keys = key.split('.');
-    let current_obj = obj;
+    let current_container = container;
 
     for (let i = 0; i < keys.length; i++) {
         const current_key = keys[i];
 
         if (i === keys.length - 1) {
-            current_obj[current_key] = value;
+            if (current_container instanceof Map) {
+                current_container.set(current_key, value);
+            } else {
+                (current_container as { [key: string]: any })[current_key] = value;
+            }
         } else {
-            current_obj[current_key] = current_obj[current_key] || {};
+            const next_key = keys[i + 1];
+            if (current_container instanceof Map) {
+                if (!current_container.has(current_key) || !(current_container.get(current_key) instanceof Map)) {
+                    current_container.set(current_key, new Map<any, any>());
+                }
+                current_container = current_container.get(current_key);
+            } else {
+                if (!current_container[current_key] || typeof current_container[current_key] !== 'object') {
+                    (current_container as { [key: string]: any })[current_key] = {};
+                }
+                current_container = current_container[current_key];
+            }
         }
-
-        current_obj = current_obj[current_key];
     }
 
-    return obj;
+    return container;
 };
+
 
 
 export const deep_copy = (obj: any, hash = new WeakMap()): any => {
@@ -102,3 +121,29 @@ export const deep_copy = (obj: any, hash = new WeakMap()): any => {
 
     return result;
 }
+
+
+export const is_deep_equal = (obj1: any, obj2: any) => {
+    if (obj1 === obj2) {
+        return true;
+    }
+
+    if (typeof obj1 !== 'object' || typeof obj2 !== 'object' || obj1 == null || obj2 == null) {
+        return false;
+    }
+
+    const keys1 = Object.keys(obj1);
+    const keys2 = Object.keys(obj2);
+
+    if (keys1.length !== keys2.length) {
+        return false;
+    }
+
+    for (const key of keys1) {
+        if (!keys2.includes(key) || !is_deep_equal(obj1[key], obj2[key])) {
+            return false;
+        }
+    }
+
+    return true;
+};

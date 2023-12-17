@@ -3,9 +3,9 @@ import { type_query, type_results } from "./types";
 import { deep_copy, distinct, get_from_dict, set_to_dict } from "./utils";
 import { stringify, parse } from 'flatted';
 
-export class results extends Array implements type_results {
+export class results<T extends object> extends Array implements type_results {
 
-    constructor(elements?: any[] | any) {
+    constructor(elements?: T[] | T) {
         if (elements && !Array.isArray(elements)) {
             elements = [elements];
         }
@@ -18,8 +18,12 @@ export class results extends Array implements type_results {
         super(...deserialized);
     }
 
-    left_join(right_dataset: results | table, join_keys: string | { left_key: string, right_key: string }, map_style: string, map_keys: { left_field?: string, right_field: string }) {
+    left_join(right_dataset: results<T> | table<T>, join_keys: string | { left_key: string, right_key: string }, map_style: string, map_keys: { left_field?: string, right_field: string }) {
 
+        // console.log(
+        //     'left_join',
+        //     { join_keys, map_style, map_keys, t: this, right_dataset }
+        // )
         if (typeof join_keys === 'string') {
             join_keys = { left_key: join_keys, right_key: join_keys };
         }
@@ -32,21 +36,22 @@ export class results extends Array implements type_results {
         //     left_dataset = left_dataset.;
         // }
 
-        let right_dataset_rows: results;
+        let right_dataset_rows: results<T>;
         if (right_dataset instanceof table) {
             //TODO - speed up by being index-aware w/ parent
             let right_dataset_indices = right_dataset.indices;
             let right_query: type_query = {};
             right_dataset_indices.forEach((index_name: string) => {
-                if (left_dataset.first() && left_dataset.first().hasOwnProperty(index_name)) {
+                let first_left_row = left_dataset.first();
+                if (first_left_row && first_left_row.hasOwnProperty(index_name)) {
                     set_to_dict(right_query, index_name, { $in: distinct(left_dataset.map(row => get_from_dict(row, index_name))) })
                 }
             });
 
-            right_dataset_rows = right_dataset.find(right_query) as results;
+            right_dataset_rows = right_dataset.find(right_query);
         }
         else {
-            right_dataset_rows = right_dataset as results;
+            right_dataset_rows = right_dataset;
         }
 
         let left_dataset_groups = this.group_by(left_key);
@@ -58,8 +63,9 @@ export class results extends Array implements type_results {
 
 
         if (map_style === 'cross_join') {
-            left_dataset_groups.forEach((left_rows, left_row_key) => {
-                let right_rows = get_from_dict(right_dataset_groups, left_row_key) || [null];
+            for (let left_row_key in left_dataset_groups) {
+                let left_rows = left_dataset_groups[left_row_key];
+                let right_rows = right_dataset_groups[left_row_key] || [null];
 
                 left_rows.forEach((left_row: any) => {
                     right_rows.forEach((right_row: any) => {
@@ -68,8 +74,7 @@ export class results extends Array implements type_results {
                         resulting_dataset.push(new_row);
                     });
                 });
-
-            })
+            }
         }
         else if (map_style == 'nest_children') {
 
@@ -87,10 +92,13 @@ export class results extends Array implements type_results {
 
             let left_dataset = this;
             let right_dataset_index = right_dataset_rows.index_by(right_key);
+            // console.log('left_join, nest_child', { left_dataset, right_key, right_dataset_index })
             left_dataset.forEach((left_row: any) => {
                 let left_row_key = get_from_dict(left_row, left_key);
                 let right_row = get_from_dict(right_dataset_index, left_row_key);
                 let new_row = left_row;
+
+                // console.log('left_join, nest_child', { left_row, left_row_key, left_key, right_row })
 
                 set_to_dict(new_row, right_field, right_row);
                 resulting_dataset.push(new_row);
@@ -102,7 +110,8 @@ export class results extends Array implements type_results {
 
 
         // Return a new results instance with merged rows
-        return resulting_dataset;
+        // console.log('left_join, resulting_dataset', { resulting_dataset })
+        return resulting_dataset as results<T>;
     }
 
     make_copy() {
@@ -110,7 +119,7 @@ export class results extends Array implements type_results {
     }
 
     index_by(index_field: string) {
-        let index = new Map();
+        let index = {};
         for (let row of this) {
             let index_value = get_from_dict(row, index_field);
             // set_to_dict(index, index_value, deep_copy(row));
@@ -120,7 +129,7 @@ export class results extends Array implements type_results {
         return index;
     }
 
-    group_by(group_by_field: string): Map<any, any[]> {
+    group_by(group_by_field: string): { [key: string]: any[] } {
         let groups = {};
         for (let row of this) {
             let group_by_value = get_from_dict(row, group_by_field);
@@ -132,11 +141,11 @@ export class results extends Array implements type_results {
             group.push(row);
         }
 
-        return new Map(Object.entries(groups));;
+        return groups;
     }
 
 
-    first(): any {
+    first(): T | null{
         if (this.length == 0) {
             return null;
         }

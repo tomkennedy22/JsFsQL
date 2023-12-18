@@ -20,14 +20,14 @@ export class database implements type_database {
         this.output_file_path = `${this.storage_location}/_${dbname}.json`;
     }
 
-    add_table({ table_name, indices, primary_key, proto }: { table_name: string, indices: string[], primary_key: string, proto?: any }): type_table {
+    add_table({ table_name, indices, primary_key, proto, delete_key_list }: { table_name: string, indices: string[], primary_key: string, proto?: any, delete_key_list: string[] }): type_table {
 
         if (!table_name) {
             throw new Error('Table name is required');
         }
 
         if (!this.tables.hasOwnProperty(table_name)) {
-            let new_table = new table({ table_name, indices, storage_location: this.storage_location, dbname: this.dbname, primary_key, proto });
+            let new_table = new table({ table_name, indices, storage_location: this.storage_location, dbname: this.dbname, primary_key, proto, delete_key_list });
             this.tables[table_name] = new_table;
             return new_table as type_table;
         }
@@ -70,9 +70,9 @@ export class database implements type_database {
 
             // Collecting promises for each table read operation
             const tableReadPromises = tables.map((table_info: any) => {
-                let { table_name, indices, primary_key } = table_info;
+                let { table_name, indices, primary_key, delete_key_list } = table_info;
                 // Assume add_table returns an instance with a read_from_file method
-                table_info.table_obj = this.add_table({ table_name, indices, primary_key, proto: null });
+                table_info.table_obj = this.add_table({ table_name, indices, primary_key, proto: null, delete_key_list });
                 // Start reading from file and return the promise to be awaited
                 return table_info.table_obj.read_from_file();
             });
@@ -86,7 +86,6 @@ export class database implements type_database {
         catch (error) {
             // console.log('Error reading from file', error, this.output_file_path)
         }
-
 
         return;
     }

@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_table } from "./types";
+import { type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_table, type_table_init } from "./types";
 import { get_from_dict, partition_name_from_partition_index } from "./utils";
 import { partition } from "./partition";
 import { results } from "./results";
@@ -16,7 +16,9 @@ export class table<T extends object> implements type_table {
     partitions_by_partition_name: { [key: string]: type_partition };
     partition_name_by_primary_key: { [key: string]: string };
 
-    constructor({ table_name, indices, storage_location, primary_key, proto }: { table_name: string, indices: string[], storage_location: string, dbname: string, primary_key: string, proto?: any }) {
+    delete_key_list: string[];
+
+    constructor({ table_name, indices, storage_location, primary_key, proto, delete_key_list }: type_table_init) {
         this.table_name = table_name;
         this.indices = indices || [];
         this.primary_key = primary_key;
@@ -24,6 +26,8 @@ export class table<T extends object> implements type_table {
 
         this.partitions_by_partition_name = {};
         this.partition_name_by_primary_key = {};
+
+        this.delete_key_list = delete_key_list || [];
 
         this.storage_location = `${storage_location}/${table_name}`;
         this.output_file_path = `${this.storage_location}/_${table_name}.json`;
@@ -109,6 +113,8 @@ export class table<T extends object> implements type_table {
             data = [data];
         }
 
+        data = this.cleanse_before_alter(data);
+
         // Process each row for insertion into its partition
         for (let row of data) {
 
@@ -140,36 +146,47 @@ export class table<T extends object> implements type_table {
         }
     }
 
-    update(data: T[] | T, fields_to_drop?: any[]): void {
+    update(data: T[] | T): void {
         if (!Array.isArray(data)) {
             data = [data];
         }
 
-        for (const row of data) {
-            // Retrieve primary key value from the row
-            const rowPk = get_from_dict(row, this.primary_key);
-            if (rowPk === undefined) {
-                throw new Error(`Primary key value missing in the data row. Cannot update.`);
-            }
+        data = this.cleanse_before_alter(data);
 
-            // Find partition name using the primary key
-            const partitionName = this.partition_name_by_primary_key[ rowPk];
-            if (!partitionName) {
-                // // console.log('In update with error', { row, rowPk, partitionName, partition_name_by_primary_key: this.partition_name_by_primary_key })
+        for (const row of data) {
+            const rowPk = get_from_dict(row, this.primary_key);
+
+            let existing_partition_name = this.partition_name_by_primary_key[rowPk];
+            if (!existing_partition_name) {
                 throw new Error(`Row with primary key ${rowPk} does not exist and cannot be updated.`);
             }
 
-            // Retrieve the corresponding partition
-            const partition = this.partitions_by_partition_name[ partitionName];
-            if (!partition) {
-                throw new Error(`Partition ${partitionName} does not exist. Cannot update row with primary key ${rowPk}.`);
-            }
+            this.partitions_by_partition_name[existing_partition_name].is_dirty = true;
 
-            // Update the row within the partition if it exists
-            partition.update(row, fields_to_drop);
+            // Remove the existing row from the partition
+            delete this.partitions_by_partition_name[existing_partition_name].data[rowPk];
+            delete this.partition_name_by_primary_key[rowPk];
+
+            this.insert(row);
         }
     }
 
+
+    cleanse_before_alter(data: T[]): T[] {
+
+        console.log('In cleanse_before_alter', { delete_key_list: this.delete_key_list, name: this.table_name })
+
+        let new_list = data.map((item) => {
+            let delete_list = this.delete_key_list;
+            if (!delete_list) {
+                return item;
+            }
+            // @ts-ignore
+            delete_list.map((delete_key: string) => delete item[delete_key])
+            return item;
+        })
+        return new_list;
+    }
 
 
     /**
@@ -371,14 +388,11 @@ export class table<T extends object> implements type_table {
 
         let rows = this.find(query);
 
-        console.log('rows to delete', { t: this, rows, query })
 
         for (let row of rows) {
             let row_pk = get_from_dict(row, this.primary_key);
             let partition_name = this.partition_name_by_primary_key[row_pk];
             let partition = this.partitions_by_partition_name[partition_name];
-
-            console.log('deleting row', { row_pk, partition_name, partition })
 
             partition.is_dirty = true;
 

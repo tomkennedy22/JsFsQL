@@ -3,12 +3,12 @@ import { results } from "./results";
 // Type alias for a partition index, which is a map of keys to arbitrary values.
 export type type_partition_index = { [key: string]: any };
 
-export type type_results = { 
-    [key: string]: any; 
-    left_join(right_dataset: type_results | type_table, 
-              join: string | { left_key: string, right_key: string }, 
-              map_style: string, 
-              map_keys: { left_field?: string, right_field: string }): type_results;
+export type type_results = {
+    [key: string]: any;
+    left_join(right_dataset: type_results | type_table,
+        join: string | { left_key: string, right_key: string },
+        map_style: string,
+        map_keys: { left_field?: string, right_field: string }): type_results;
     index_by(index_field: string): { [key: string]: any };
     group_by(group_by_field: string): { [key: string]: any };
     first(): any;
@@ -44,6 +44,8 @@ export type type_table = {
     partitions_by_partition_name: { [key: string]: type_partition };
     partition_name_by_primary_key: { [key: string]: string };
 
+    delete_key_list: string[];
+
     // Methods for data manipulation and retrieval.
     find_partitions: () => type_partition[];
     read_from_file: () => Promise<void>;
@@ -55,7 +57,8 @@ export type type_table = {
     insert: (data: any[] | any) => void;
     update: (data: any[] | any, fields_to_drop?: any[]) => void;
     delete: (query?: type_loose_query) => void;
-    find: (query?: type_loose_query) => results;
+    find: (query?: type_loose_query) => results<any>;
+    cleanse_before_alter: (data: any[]) => any[];
     findOne: (query?: type_loose_query) => any;
     output_to_file: () => Promise<void>;
     filter: (data: any, query_field: type_query_field, query_clause: type_query_clause) => any[];
@@ -83,6 +86,16 @@ export type type_query = {
     [key: string]: number | string | type_query_clause;
 }
 
+export type type_table_init = {
+    table_name: string;
+    indices: string[];
+    storage_location: string;
+    dbname: string;
+    primary_key: string;
+    proto?: any;
+    delete_key_list: string[];
+}
+
 export type type_database = {
     dbname: string;
     tables: { [key: string]: type_table };
@@ -90,7 +103,7 @@ export type type_database = {
     storage_location: string;
     output_file_path: string;
 
-    add_table: ({ table_name, indices, primary_key, proto }: { table_name: string, indices: string[], primary_key: string, proto: any }) => type_table;
+    add_table: ({ table_name, indices, primary_key, proto }: type_table_init) => type_table;
     save_database: () => Promise<void>;
     read_from_file: () => Promise<void>;
 }

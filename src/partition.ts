@@ -15,6 +15,7 @@ export class partition<T extends object> implements type_partition {
     data: { [key: string]: any };
     primary_key: string;
     is_dirty: boolean = true; // Default is_dirty to true to indicate the partition requires saving upon creation.
+    write_lock: boolean = false; // Default write_lock to false to indicate the partition is not currently being saved.
 
     // Constructor to initialize a new partition with given properties.
     constructor({ storage_location, partition_indices, primary_key, proto }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T }) {
@@ -86,22 +87,37 @@ export class partition<T extends object> implements type_partition {
      */
     write_to_file = async (): Promise<void> => {
         // Skip writing to file if no changes have been made
-        if (!this.is_dirty) {
+        if (!this.is_dirty || this.write_lock) {
             return;
         }
 
-        // Reset the 'is_dirty' flag to indicate the state is being saved
-        this.is_dirty = false;
+        this.write_lock = true;
+        const lockTimeout = setTimeout(() => this.write_lock = false, 10000);
 
-        // Serialize the object to a JSON string with pretty-printing
-        let data = JSON.stringify(this, null, 2);
+        try {
+            this.is_dirty = false;
 
-        // Ensure the directory exists where the file will be stored
-        const dirname = path.dirname(this.output_file_path);
-        await fs.mkdir(dirname, { recursive: true });
+            // Serialize the object to a JSON string with pretty-printing
+            let data = JSON.stringify(this, null, 2);
 
-        // Write the serialized data to the file at the specified storage location
-        return fs.writeFile(this.output_file_path, data);
+            // Ensure the directory exists where the file will be stored
+            const dirname = path.dirname(this.output_file_path);
+            await fs.mkdir(dirname, { recursive: true });
+
+            // Write to a temporary file first
+            const tempFilePath = this.output_file_path + '.tmp';
+            await fs.writeFile(tempFilePath, data);
+
+            // Rename the temporary file to the actual file name (atomic operation)
+            await fs.rename(tempFilePath, this.output_file_path);
+        } catch (error) {
+            console.error("Error writing file:", error);
+            // Revert 'is_dirty' if write fails
+            this.is_dirty = true;
+        } finally {
+            clearTimeout(lockTimeout);
+            this.write_lock = false;
+        }
     }
 
     read_from_file = async () => {
@@ -125,7 +141,7 @@ export class partition<T extends object> implements type_partition {
             return Promise.resolve();
         }
         catch (error) {
-            // console.log('Error reading from file', error, this.output_file_path)
+            console.log('Error reading from file', error, this.output_file_path)
         }
     }
 

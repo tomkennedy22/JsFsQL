@@ -33,26 +33,58 @@ export class table<T extends object> implements type_table {
         this.output_file_path = `${this.storage_location}/_${table_name}.json`;
     }
 
-
     output_to_file = async () => {
-        let partitions = this.find_partitions();
+        try {
+            let partitions = this.find_partitions();
 
-        let output_data = {
-            table_name: this.table_name,
-            indices: this.indices,
-            primary_key: this.primary_key,
-            partition_names: Object.keys(this.partitions_by_partition_name),
-            output_file_path: this.output_file_path,
-            storage_location: this.storage_location,
+            let output_data = {
+                table_name: this.table_name,
+                indices: this.indices,
+                primary_key: this.primary_key,
+                partition_names: Object.keys(this.partitions_by_partition_name),
+                output_file_path: this.output_file_path,
+                storage_location: this.storage_location,
+            }
+            let data = JSON.stringify(output_data, null, 2);
+
+            // Ensure the directory exists where the file will be stored
+            const dirname = path.dirname(this.output_file_path);
+            await fs.mkdir(dirname, { recursive: true });
+
+            // Wait for all partitions to finish writing
+            const writePromises = partitions.map(async (partition) => {
+                // If the partition is already being written to, wait
+                let wait_count = 0;
+                let wait_limit = 10;
+                let wait_time = 50;
+                while (partition.write_lock && wait_count < wait_limit) {
+                    console.log('Waiting for write lock on partition', partition.partition_name, '. Wait count: ', wait_count)
+                    wait_time *= 1.5;
+                    wait_count += 1;
+
+                    await new Promise(resolve => setTimeout(resolve, wait_time)); // wait for 100ms before checking again
+                }
+
+                if (wait_count >= wait_limit) {
+                    console.error(`Write lock timeout exceeded for partition ${partition.partition_name} after ${wait_count} attempts`);
+                    return;
+                }
+
+                // Now write to the partition
+                return partition.write_to_file();
+            });
+
+            // Wait for all partition writes to complete
+            await Promise.all(writePromises);
+
+            // Write the table metadata
+            await fs.writeFile(this.output_file_path, data);
+
+        } catch (error) {
+            console.error("Error in output_to_file:", error);
+            // Handle the error appropriately
+            // Perhaps set a flag to indicate that the write operation failed
         }
-        let data = JSON.stringify(output_data, null, 2);
-
-        // Ensure the directory exists where the file will be stored
-        const dirname = path.dirname(this.output_file_path);
-        await fs.mkdir(dirname, { recursive: true });
-
-        await Promise.all([partitions.map(partition => partition.write_to_file())]);
-        await fs.writeFile(this.output_file_path, data)
     }
 
     read_from_file = async () => {
@@ -63,8 +95,6 @@ export class table<T extends object> implements type_table {
 
             let { table_name, indices, primary_key, partition_names, storage_location } = parsed_data;
 
-            // console.log({ table_name, indices, primary_key, partition_names, storage_location })
-
             this.table_name = table_name;
             this.indices = indices;
             this.primary_key = primary_key;
@@ -73,20 +103,29 @@ export class table<T extends object> implements type_table {
             // Collecting promises for each partition read operation
             const partitionReadPromises = partition_names.map(async (partition_name: string) => {
                 // console.log('Reading partition', { partition_name });
-                let partition_data = await fs.readFile(`${storage_location}/${partition_name}.json`, 'utf-8');
-                let parsed_partition_data = JSON.parse(partition_data);
-                let { partition_indices, data } = parsed_partition_data;
+                let partition_location = `${storage_location}/${partition_name}.json`;
 
-                // Create and assign partition instance
-                let new_partition = new partition({ storage_location, partition_indices, primary_key, proto: this.proto });
-                new_partition.data = data;
-                new_partition.is_dirty = false;
+                try {
+                    let partition_data = await fs.readFile(partition_location, 'utf-8');
+                    let parsed_partition_data = JSON.parse(partition_data);
+                    let { partition_indices, data } = parsed_partition_data;
 
-                this.partitions_by_partition_name[partition_name] = new_partition;
+                    // Create and assign partition instance
+                    let new_partition = new partition({ storage_location, partition_indices, primary_key, proto: this.proto });
+                    new_partition.data = data;
+                    new_partition.is_dirty = false;
 
-                // Process primary keys if necessary
-                for (let pk in data) {
-                    this.partition_name_by_primary_key[pk] = partition_name;
+                    this.partitions_by_partition_name[partition_name] = new_partition;
+
+                    // Process primary keys if necessary
+                    for (let pk in data) {
+                        this.partition_name_by_primary_key[pk] = partition_name;
+                    }
+
+                    console.log('Successfully read partition', table_name, partition_name, partition_location)
+                }
+                catch (error) {
+                    console.log('\n\n*******Error reading partition*******', { error, partition_location, partition_name, table_name, storage_location })
                 }
             });
 
@@ -99,7 +138,7 @@ export class table<T extends object> implements type_table {
 
         }
         catch (error) {
-            // console.log('Error reading from file', error, this.output_file_path)
+            console.log('Error reading from file', error, this.output_file_path)
         }
     }
 
@@ -174,15 +213,13 @@ export class table<T extends object> implements type_table {
 
     cleanse_before_alter(data: T[]): T[] {
 
-        console.log('In cleanse_before_alter', { delete_key_list: this.delete_key_list, name: this.table_name })
-
         let new_list = data.map((item) => {
             let delete_list = this.delete_key_list;
             if (!delete_list) {
                 return item;
             }
             // @ts-ignore
-            delete_list.map((delete_key: string) => delete item[delete_key])
+            delete_list.forEach((delete_key: string) => delete item[delete_key])
             return item;
         })
         return new_list;
@@ -208,7 +245,7 @@ export class table<T extends object> implements type_table {
 
         for (let query_field in query) {
             let query_clause: type_query_clause = query[query_field] as type_query_clause;
-            if (typeof query_clause === 'string' || typeof query_clause === 'number') {
+            if (typeof query_clause === 'string' || typeof query_clause === 'number' || typeof query_clause === 'boolean') {
                 query[query_field] = { $eq: query_clause };
             }
         }

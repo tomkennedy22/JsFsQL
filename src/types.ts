@@ -24,6 +24,7 @@ export type type_partition = {
     storage_location: string;
     primary_key: string;
     is_dirty: boolean;
+    write_lock: boolean;
     insert: (data: any) => void;
     update: (data: any[] | any, fields_to_drop?: any[]) => void;
     write_to_file: () => Promise<void>;
@@ -89,8 +90,8 @@ export type type_query = {
 export type type_table_init = {
     table_name: string;
     indices: string[];
-    storage_location: string;
-    dbname: string;
+    storage_location?: string;
+    dbname?: string;
     primary_key: string;
     proto?: any;
     delete_key_list: string[];

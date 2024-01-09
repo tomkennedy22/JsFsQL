@@ -40,6 +40,7 @@ export type type_table = {
     output_file_path: string; // File system path where table data is stored.
     primary_key: string; // Field used to uniquely identify records within the table.
     proto?: any; // Prototype object used to instantiate new records.
+    connected_tables: { [key: string]: string }; // List of tables connected to this table via foreign keys.
 
     // Mappings for partition management based on partition names and primary keys.
     partitions_by_partition_name: { [key: string]: type_partition };
@@ -64,6 +65,7 @@ export type type_table = {
     output_to_file: () => Promise<void>;
     filter: (data: any, query_field: type_query_field, query_clause: type_query_clause) => any[];
     index_partition_filter: (partitions: type_partition[], index_name: string, query_clause: type_query_clause) => type_partition[];
+    get_foreign_key: (foreign_table_name: string) => string | null;
 }
 
 // Defines a query field as a string, representing the field to query within data records.
@@ -95,6 +97,7 @@ export type type_table_init = {
     primary_key: string;
     proto?: any;
     delete_key_list: string[];
+    connected_tables: { [key: string]: string };
 }
 
 export type type_database = {
@@ -107,4 +110,20 @@ export type type_database = {
     add_table: ({ table_name, indices, primary_key, proto }: type_table_init) => type_table;
     save_database: () => Promise<void>;
     read_from_file: () => Promise<void>;
+}
+
+
+export type type_join_criteria = {
+    type: 'parent' | 'single' | 'group',
+    query?: type_loose_query,
+    children?: type_join_pattern
+}
+
+export type type_join_pattern = {
+    [key: string]:
+    {
+        type: 'parent' | 'single' | 'group',
+        query?: type_loose_query,
+        children?: type_join_pattern
+    }
 }

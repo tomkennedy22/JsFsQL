@@ -1,0 +1,321 @@
+[
+  {
+    "league_season_id": 1,
+    "league_id": 1,
+    "season": 2023,
+    "league": {
+      "league_id": 1,
+      "league_name": "Tommy Football League",
+      "league_abbreviation": "TFL",
+      "league_color_secondary_hex": "FFFFFF",
+      "league_color_primary_hex": "000000",
+      "league_level": 1
+    },
+    "tier_seasons": [
+      {
+        "tier_id": 1,
+        "season": 2023,
+        "tier_season_id": 1,
+        "league_season_id": 1,
+        "tier": {
+          "tier_id": 1,
+          "tier_name": "TFL",
+          "tier_abbreviation": "FBS",
+          "tier_color_secondary_hex": "FFFFFF",
+          "tier_color_primary_hex": "000000",
+          "tier_level": 1,
+          "league_id": 1
+        },
+        "conference_seasons": [
+          {
+            "conference_id": 1,
+            "season": 2023,
+            "conference_season_id": 1,
+            "tier_season_id": 1,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 1,
+              "conference_name": "Tommy Football Conference",
+              "conference_abbreviation": "TFC",
+              "league_id": 1,
+              "tier_id": 1
+            }
+          },
+          {
+            "conference_id": 2,
+            "season": 2023,
+            "conference_season_id": 2,
+            "tier_season_id": 1,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 2,
+              "conference_name": "Emmitt Football Conference",
+              "conference_abbreviation": "EFC",
+              "league_id": 1,
+              "tier_id": 1
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "league_season_id": 2,
+    "league_id": 2,
+    "season": 2023,
+    "league": {
+      "league_id": 2,
+      "league_name": "College Football",
+      "league_abbreviation": "CFB",
+      "league_color_secondary_hex": "FFFFFF",
+      "league_color_primary_hex": "000000",
+      "league_level": 2
+    },
+    "tier_seasons": [
+      {
+        "tier_id": 2,
+        "season": 2023,
+        "tier_season_id": 2,
+        "league_season_id": 2,
+        "tier": {
+          "tier_id": 2,
+          "tier_name": "FBTS",
+          "tier_abbreviation": "FBS",
+          "tier_color_secondary_hex": "FFFFFF",
+          "tier_color_primary_hex": "000000",
+          "tier_level": 1,
+          "league_id": 2
+        },
+        "conference_seasons": [
+          {
+            "conference_id": 3,
+            "season": 2023,
+            "conference_season_id": 3,
+            "tier_season_id": 2,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 3,
+              "conference_name": "Eloise Coast Conference",
+              "conference_abbreviation": "ECC",
+              "league_id": 2,
+              "tier_id": 2
+            }
+          },
+          {
+            "conference_id": 4,
+            "season": 2023,
+            "conference_season_id": 4,
+            "tier_season_id": 2,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 4,
+              "conference_name": "Chicago Athletic Conference",
+              "conference_abbreviation": "CAC",
+              "league_id": 2,
+              "tier_id": 2
+            }
+          },
+          {
+            "conference_id": 5,
+            "season": 2023,
+            "conference_season_id": 5,
+            "tier_season_id": 2,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 5,
+              "conference_name": "Big 69",
+              "conference_abbreviation": "B69",
+              "league_id": 2,
+              "tier_id": 2
+            }
+          },
+          {
+            "conference_id": 6,
+            "season": 2023,
+            "conference_season_id": 6,
+            "tier_season_id": 2,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 6,
+              "conference_name": "Big 420",
+              "conference_abbreviation": "B420",
+              "league_id": 2,
+              "tier_id": 2
+            }
+          },
+          {
+            "conference_id": 7,
+            "season": 2023,
+            "conference_season_id": 7,
+            "tier_season_id": 2,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 7,
+              "conference_name": "Mideast Conference",
+              "conference_abbreviation": "MEC",
+              "league_id": 2,
+              "tier_id": 2
+            }
+          },
+          {
+            "conference_id": 8,
+            "season": 2023,
+            "conference_season_id": 8,
+            "tier_season_id": 2,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 8,
+              "conference_name": "Mountain Wheast Conference",
+              "conference_abbreviation": "MWC",
+              "league_id": 2,
+              "tier_id": 2
+            }
+          },
+          {
+            "conference_id": 9,
+            "season": 2023,
+            "conference_season_id": 9,
+            "tier_season_id": 2,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 9,
+              "conference_name": "Conference NAFTA",
+              "conference_abbreviation": "C-NAFTA",
+              "league_id": 2,
+              "tier_id": 2
+            }
+          },
+          {
+            "conference_id": 10,
+            "season": 2023,
+            "conference_season_id": 10,
+            "tier_season_id": 2,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 10,
+              "conference_name": "Sad Belt",
+              "conference_abbreviation": "SBC",
+              "league_id": 2,
+              "tier_id": 2
+            }
+          },
+          {
+            "conference_id": 11,
+            "season": 2023,
+            "conference_season_id": 11,
+            "tier_season_id": 2,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 11,
+              "conference_name": "Mid-River Conference",
+              "conference_abbreviation": "MRC",
+              "league_id": 2,
+              "tier_id": 2
+            }
+          },
+          {
+            "conference_id": 12,
+            "season": 2023,
+            "conference_season_id": 12,
+            "tier_season_id": 2,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 12,
+              "conference_name": "TBS Independents",
+              "conference_abbreviation": "Ind",
+              "league_id": 2,
+              "tier_id": 2
+            }
+          }
+        ]
+      },
+      {
+        "tier_id": 3,
+        "season": 2023,
+        "tier_season_id": 3,
+        "league_season_id": 2,
+        "tier": {
+          "tier_id": 3,
+          "tier_name": "TCS",
+          "tier_abbreviation": "FCS",
+          "tier_color_secondary_hex": "FFFFFF",
+          "tier_color_primary_hex": "000000",
+          "tier_level": 2,
+          "league_id": 2
+        },
+        "conference_seasons": [
+          {
+            "conference_id": 13,
+            "season": 2023,
+            "conference_season_id": 13,
+            "tier_season_id": 3,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 13,
+              "conference_name": "Fern League",
+              "conference_abbreviation": "Fern",
+              "league_id": 2,
+              "tier_id": 3
+            }
+          },
+          {
+            "conference_id": 14,
+            "season": 2023,
+            "conference_season_id": 14,
+            "tier_season_id": 3,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 14,
+              "conference_name": "TCS North",
+              "conference_abbreviation": "TCS N",
+              "league_id": 2,
+              "tier_id": 3
+            }
+          },
+          {
+            "conference_id": 15,
+            "season": 2023,
+            "conference_season_id": 15,
+            "tier_season_id": 3,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 15,
+              "conference_name": "TCS East",
+              "conference_abbreviation": "TCS E",
+              "league_id": 2,
+              "tier_id": 3
+            }
+          },
+          {
+            "conference_id": 16,
+            "season": 2023,
+            "conference_season_id": 16,
+            "tier_season_id": 3,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 16,
+              "conference_name": "TCS South",
+              "conference_abbreviation": "TCS S",
+              "league_id": 2,
+              "tier_id": 3
+            }
+          },
+          {
+            "conference_id": 17,
+            "season": 2023,
+            "conference_season_id": 17,
+            "tier_season_id": 3,
+            "conference": {
+              "world_id": 1,
+              "conference_id": 17,
+              "conference_name": "TCS West",
+              "conference_abbreviation": "TCS W",
+              "league_id": 2,
+              "tier_id": 3
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

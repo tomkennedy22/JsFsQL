@@ -15,14 +15,16 @@ export class table<T extends object> implements type_table {
     proto?: any;
     partitions_by_partition_name: { [key: string]: type_partition };
     partition_name_by_primary_key: { [key: string]: string };
+    connected_tables: { [key: string]: string };
 
     delete_key_list: string[];
 
-    constructor({ table_name, indices, storage_location, primary_key, proto, delete_key_list }: type_table_init) {
+    constructor({ table_name, indices, storage_location, primary_key, proto, delete_key_list, connected_tables }: type_table_init) {
         this.table_name = table_name;
         this.indices = indices || [];
         this.primary_key = primary_key;
         this.proto = proto;
+        this.connected_tables = connected_tables || {};
 
         this.partitions_by_partition_name = {};
         this.partition_name_by_primary_key = {};
@@ -44,6 +46,7 @@ export class table<T extends object> implements type_table {
                 partition_names: Object.keys(this.partitions_by_partition_name),
                 output_file_path: this.output_file_path,
                 storage_location: this.storage_location,
+                connected_tables: this.connected_tables,
             }
             let data = JSON.stringify(output_data, null, 2);
 
@@ -93,12 +96,13 @@ export class table<T extends object> implements type_table {
             let data = await fs.readFile(this.output_file_path, 'utf-8');
             let parsed_data = JSON.parse(data);
 
-            let { table_name, indices, primary_key, partition_names, storage_location } = parsed_data;
+            let { table_name, indices, primary_key, partition_names, storage_location, connected_tables } = parsed_data;
 
             this.table_name = table_name;
             this.indices = indices;
             this.primary_key = primary_key;
             this.storage_location = storage_location;
+            this.connected_tables = connected_tables;
 
             // Collecting promises for each partition read operation
             const partitionReadPromises = partition_names.map(async (partition_name: string) => {
@@ -528,5 +532,12 @@ export class table<T extends object> implements type_table {
         else {
             return data[0];
         }
+    }
+
+    get_foreign_key(foreign_table_name: string): string | null {
+        if (!this.connected_tables) {
+            return null;
+        }
+        return this.connected_tables[foreign_table_name];
     }
 }

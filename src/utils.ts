@@ -147,3 +147,36 @@ export const is_deep_equal = (obj1: any, obj2: any) => {
 
     return true;
 };
+
+export const nest_children = (parent_array: any, child_dict: { [x: string]: any; }, join_key: string, store_key: string) => {
+
+    for (const parent of parent_array) {
+        parent[store_key] = child_dict[parent[join_key]];
+    }
+
+    return parent_array;
+};
+
+export const index_by = (list: any[], index_field: string) => {
+    // console.log('index_by', { list, index_field });
+    let index_map: any = {};
+    for (let row of list) {
+        let index_value = get_from_dict(row, index_field);
+        index_map[index_value] = row;
+    }
+
+    return index_map;
+}
+
+export const group_by = (list: any[], index_field: string) => {
+    let group_map: any = {};
+    for (let row of list) {
+        let index_value = get_from_dict(row, index_field);
+        if (!(group_map[index_value])) {
+            group_map[index_value] = [];
+        }
+        group_map[index_value].push(row);
+    }
+
+    return group_map;
+}

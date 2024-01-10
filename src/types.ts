@@ -124,19 +124,3 @@ export type type_database = {
     save_database: () => Promise<void>;
     read_from_file: () => Promise<void>;
 }
-
-
-export type type_join_criteria_other = {
-    type: 'parent' | 'single' | 'group',
-    query?: type_loose_query,
-    children?: type_join_pattern
-}
-
-export type type_join_pattern = {
-    [key: string]:
-    {
-        type: 'parent' | 'single' | 'group',
-        query?: type_loose_query,
-        children?: type_join_pattern
-    }
-}

@@ -2,7 +2,7 @@ import { database } from "./database";
 import { results } from "./results";
 import fs from "fs/promises";
 import path from "path";
-import { type_connection_init, type_database, type_join_pattern, type_loose_query, type_table_init } from "./types";
+import { type_connection_init, type_database, type_loose_query, type_table_init } from "./types";
 import { distinct, get_from_dict, group_by, index_by, nest_children } from "./utils";
 import { join } from "./join";
 
@@ -780,8 +780,6 @@ const test = async () => {
         db,
         'league_season',
         ['league', 'tier_season', 'conference_season', 'conference', 'division_season', 'division'],
-        // ['league', 'tier_season', 'conference_season', 'conference', 'division_season', 'division', 'team_season', 'team'],
-        // ['league', 'tier_season'],
         {
             'league_season': { league_id, season },
         }

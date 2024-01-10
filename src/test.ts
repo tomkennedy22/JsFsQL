@@ -2,7 +2,7 @@ import { database } from "./database";
 import { results } from "./results";
 import fs from "fs/promises";
 import path from "path";
-import { type_database, type_join_pattern, type_loose_query, type_table_init } from "./types";
+import { type_connection_init, type_database, type_join_pattern, type_loose_query, type_table_init } from "./types";
 import { distinct, get_from_dict, group_by, index_by, nest_children } from "./utils";
 import { join } from "./join";
 
@@ -32,107 +32,83 @@ const test = async () => {
             table_name: "league_season",
             primary_key: "league_season_id",
             indices: ["league_id"],
-            connected_tables: {
-                league: "league_id",
-                tier_season: "league_season_id"
-            },
             delete_key_list: [],
         },
         {
             table_name: "league",
             primary_key: "league_id",
             indices: [],
-            connected_tables: {
-                league_season: "league_id"
-            },
             delete_key_list: [],
         },
         {
             table_name: "team",
             primary_key: "team_id",
             indices: ["league_id"],
-            connected_tables: {
-                team_season: "team_id"
-            },
             delete_key_list: [],
         },
         {
             table_name: "team_season",
             primary_key: "team_season_id",
             indices: ["season"],
-            connected_tables: {
-                team: "team_id",
-                division_season: "division_season_id"
-            },
             delete_key_list: [],
         },
         {
             table_name: "conference",
             primary_key: "conference_id",
             indices: ["league_id"],
-            connected_tables: {
-                conference_season: "conference_id",
-                division: "conference_id",
-                tier: "tier_id"
-            },
             delete_key_list: [],
         },
         {
             table_name: "division",
             primary_key: "division_id",
             indices: [],
-            connected_tables: {
-                division_season: "division_id",
-                conference: "conference_id",
-            },
             delete_key_list: [],
         },
         {
             table_name: "tier",
             primary_key: "tier_id",
             indices: [],
-            connected_tables: {
-                tier_season: "tier_id",
-                conference: "tier_id"
-            },
             delete_key_list: [],
         },
         {
             table_name: "division_season",
             primary_key: "division_season_id",
             indices: ['season'],
-            connected_tables: {
-                division: "division_id",
-                team_season: "division_season_id"
-            },
             delete_key_list: [],
         },
         {
             table_name: "tier_season",
             primary_key: "tier_season_id",
             indices: ['season'],
-            connected_tables: {
-                tier: "tier_id",
-                conference_season: "tier_season_id",
-                league_season: "league_season_id"
-            },
             delete_key_list: [],
         },
         {
             table_name: "conference_season",
             primary_key: "conference_season_id",
             indices: ['season'],
-            connected_tables: {
-                conference: "conference_id",
-                tier_season: "tier_season_id"
-            },
             delete_key_list: [],
         }
+    ]
+
+    let collection_connection_list: type_connection_init[] = [
+        { table_a_name: 'league', table_b_name: 'league_season', join_key: 'league_id', join_type: 'one_to_many' },
+        { table_a_name: 'league_season', table_b_name: 'tier_season', join_key: 'league_season_id', join_type: 'one_to_many' },
+        { table_a_name: 'tier_season', table_b_name: 'conference_season', join_key: 'tier_season_id', join_type: 'one_to_many' },
+        { table_a_name: 'conference_season', table_b_name: 'division_season', join_key: 'conference_season_id', join_type: 'one_to_many' },
+        { table_a_name: 'division_season', table_b_name: 'team_season', join_key: 'division_season_id', join_type: 'one_to_many' },
+        { table_a_name: 'team', table_b_name: 'team_season', join_key: 'team_id', join_type: 'one_to_many' },
+        { table_a_name: 'conference', table_b_name: 'conference_season', join_key: 'conference_id', join_type: 'one_to_many' },
+        { table_a_name: 'division', table_b_name: 'division_season', join_key: 'division_id', join_type: 'one_to_many' },
+        { table_a_name: 'tier', table_b_name: 'tier_season', join_key: 'tier_id', join_type: 'one_to_many' },
     ]
 
     db_collection_list.forEach(function (col_obj) {
         db.add_table(col_obj);
     });
+
+    collection_connection_list.forEach(function (con_obj) {
+        db.add_connection(con_obj);
+    })
 
     let conferences = [{
         "world_id": 1,
@@ -405,19 +381,19 @@ const test = async () => {
         "season": 2023,
         "tier_season_id": 1,
         "league_season_id": 1
-      },
-     {
+    },
+    {
         "tier_id": 2,
         "season": 2023,
         "tier_season_id": 2,
         "league_season_id": 2
-      },
-      {
+    },
+    {
         "tier_id": 3,
         "season": 2023,
         "tier_season_id": 3,
         "league_season_id": 2
-      }]
+    }]
 
     let leagues = [
         {
@@ -451,6 +427,334 @@ const test = async () => {
         }
     ]
 
+    let division_seasons = [
+        {
+            "division_id": 1,
+            "season": 2023,
+            "division_season_id": 1,
+            "conference_season_id": 1
+        },
+        {
+            "division_id": 2,
+            "season": 2023,
+            "division_season_id": 2,
+            "conference_season_id": 1
+        },
+        {
+            "division_id": 3,
+            "season": 2023,
+            "division_season_id": 3,
+            "conference_season_id": 1
+        },
+        {
+            "division_id": 4,
+            "season": 2023,
+            "division_season_id": 4,
+            "conference_season_id": 1
+        },
+        {
+            "division_id": 5,
+            "season": 2023,
+            "division_season_id": 5,
+            "conference_season_id": 2
+        },
+        {
+            "division_id": 6,
+            "season": 2023,
+            "division_season_id": 6,
+            "conference_season_id": 2
+        },
+        {
+            "division_id": 7,
+            "season": 2023,
+            "division_season_id": 7,
+            "conference_season_id": 2
+        },
+        {
+            "division_id": 8,
+            "season": 2023,
+            "division_season_id": 8,
+            "conference_season_id": 2
+        },
+        {
+            "division_id": 9,
+            "season": 2023,
+            "division_season_id": 9,
+            "conference_season_id": 3
+        },
+        {
+            "division_id": 10,
+            "season": 2023,
+            "division_season_id": 10,
+            "conference_season_id": 4
+        },
+        {
+            "division_id": 15,
+            "season": 2023,
+            "division_season_id": 11,
+            "conference_season_id": 5
+        },
+        {
+            "division_id": 14,
+            "season": 2023,
+            "division_season_id": 12,
+            "conference_season_id": 6
+        },
+        {
+            "division_id": 16,
+            "season": 2023,
+            "division_season_id": 13,
+            "conference_season_id": 7
+        },
+        {
+            "division_id": 12,
+            "season": 2023,
+            "division_season_id": 14,
+            "conference_season_id": 8
+        },
+        {
+            "division_id": 17,
+            "season": 2023,
+            "division_season_id": 15,
+            "conference_season_id": 9
+        },
+        {
+            "division_id": 11,
+            "season": 2023,
+            "division_season_id": 16,
+            "conference_season_id": 10
+        },
+        {
+            "division_id": 13,
+            "season": 2023,
+            "division_season_id": 17,
+            "conference_season_id": 11
+        },
+        {
+            "division_id": 18,
+            "season": 2023,
+            "division_season_id": 18,
+            "conference_season_id": 12
+        },
+        {
+            "division_id": 19,
+            "season": 2023,
+            "division_season_id": 19,
+            "conference_season_id": 13
+        },
+        {
+            "division_id": 21,
+            "season": 2023,
+            "division_season_id": 20,
+            "conference_season_id": 14
+        },
+        {
+            "division_id": 22,
+            "season": 2023,
+            "division_season_id": 21,
+            "conference_season_id": 15
+        },
+        {
+            "division_id": 20,
+            "season": 2023,
+            "division_season_id": 22,
+            "conference_season_id": 16
+        },
+        {
+            "division_id": 23,
+            "season": 2023,
+            "division_season_id": 23,
+            "conference_season_id": 17
+        }
+    ]
+
+    let divisions = [
+        {
+            "conference_id": 1,
+            "division_name": "East",
+            "division_abbreviation": "E",
+            "division_id": 1,
+            "tier_id": 1,
+            "league_id": 1
+        },
+        {
+            "conference_id": 1,
+            "division_name": "West",
+            "division_abbreviation": "W",
+            "division_id": 2,
+            "tier_id": 1,
+            "league_id": 1
+        },
+        {
+            "conference_id": 1,
+            "division_name": "North",
+            "division_abbreviation": "N",
+            "division_id": 3,
+            "tier_id": 1,
+            "league_id": 1
+        },
+        {
+            "conference_id": 1,
+            "division_name": "South",
+            "division_abbreviation": "S",
+            "division_id": 4,
+            "tier_id": 1,
+            "league_id": 1
+        },
+        {
+            "conference_id": 2,
+            "division_name": "East",
+            "division_abbreviation": "E",
+            "division_id": 5,
+            "tier_id": 1,
+            "league_id": 1
+        },
+        {
+            "conference_id": 2,
+            "division_name": "West",
+            "division_abbreviation": "W",
+            "division_id": 6,
+            "tier_id": 1,
+            "league_id": 1
+        },
+        {
+            "conference_id": 2,
+            "division_name": "North",
+            "division_abbreviation": "N",
+            "division_id": 7,
+            "tier_id": 1,
+            "league_id": 1
+        },
+        {
+            "conference_id": 2,
+            "division_name": "South",
+            "division_abbreviation": "S",
+            "division_id": 8,
+            "tier_id": 1,
+            "league_id": 1
+        },
+        {
+            "conference_id": 3,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 9,
+            "tier_id": 2,
+            "league_id": 2
+        },
+        {
+            "conference_id": 4,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 10,
+            "tier_id": 2,
+            "league_id": 2
+        },
+        {
+            "conference_id": 10,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 11,
+            "tier_id": 2,
+            "league_id": 2
+        },
+        {
+            "conference_id": 8,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 12,
+            "tier_id": 2,
+            "league_id": 2
+        },
+        {
+            "conference_id": 11,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 13,
+            "tier_id": 2,
+            "league_id": 2
+        },
+        {
+            "conference_id": 6,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 14,
+            "tier_id": 2,
+            "league_id": 2
+        },
+        {
+            "conference_id": 5,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 15,
+            "tier_id": 2,
+            "league_id": 2
+        },
+        {
+            "conference_id": 7,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 16,
+            "tier_id": 2,
+            "league_id": 2
+        },
+        {
+            "conference_id": 9,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 17,
+            "tier_id": 2,
+            "league_id": 2
+        },
+        {
+            "conference_id": 12,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 18,
+            "tier_id": 2,
+            "league_id": 2
+        },
+        {
+            "conference_id": 13,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 19,
+            "tier_id": 3,
+            "league_id": 2
+        },
+        {
+            "conference_id": 16,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 20,
+            "tier_id": 3,
+            "league_id": 2
+        },
+        {
+            "conference_id": 14,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 21,
+            "tier_id": 3,
+            "league_id": 2
+        },
+        {
+            "conference_id": 15,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 22,
+            "tier_id": 3,
+            "league_id": 2
+        },
+        {
+            "conference_id": 17,
+            "division_name": "All",
+            "division_abbreviation": "All",
+            "division_id": 23,
+            "tier_id": 3,
+            "league_id": 2
+        }
+    ]
+
     db.tables.league.insert(leagues);
     db.tables.league_season.insert(league_seasons);
 
@@ -460,8 +764,8 @@ const test = async () => {
     db.tables.conference.insert(conferences);
     db.tables.conference_season.insert(conference_seasons);
 
-    // db.tables.division.insert(divisions);
-    // db.tables.division_season.insert(division_seasons);
+    db.tables.division.insert(divisions);
+    db.tables.division_season.insert(division_seasons);
 
     // db.tables.team.insert(teams);
     // db.tables.team_season.insert(team_seasons);
@@ -471,39 +775,22 @@ const test = async () => {
 
     let league_id = 1;
     let season = 2023;
-    let join_critera: type_join_pattern = {
-        league_season: {
-            type: 'parent',
-            query: { season: season },
-            children: {
-                league: { type: 'single' },
-                tier_season: {
-                    type: 'group', 
-                    children: {
-                        tier: { type: 'single' },
-                        conference_season: {
-                            type: 'group', children: {
-                                conference: { type: 'single' },
-                                division_season: {
-                                    type: 'group', children: {
-                                        division: { type: 'single' },
-                                        team_season: {
-                                            type: 'group', children: {
-                                                team: { type: 'single' }
-                                            }}}}
-                            }
-                        }
-                    }
-                }
-            }
+
+    let result = join(
+        db,
+        'league_season',
+        ['league', 'tier_season', 'conference_season', 'conference', 'division_season', 'division'],
+        // ['league', 'tier_season', 'conference_season', 'conference', 'division_season', 'division', 'team_season', 'team'],
+        // ['league', 'tier_season'],
+        {
+            'league_season': { league_id, season },
         }
-    }
+    );
 
-    let result = join(db, 'league_season', join_critera);
-
+    // let result = join(db, 'league_season', join_critera);
+    console.log('result', result)
     writeJsonToFile('join_test.json', result);
 
-    console.log('result', result)
     // await db.save_database()
 }
 

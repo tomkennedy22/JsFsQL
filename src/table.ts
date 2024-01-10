@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_table, type_table_init } from "./types";
+import { type_join_criteria, type_join_type, type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_table, type_table_init } from "./types";
 import { get_from_dict, partition_name_from_partition_index } from "./utils";
 import { partition } from "./partition";
 import { results } from "./results";
@@ -15,16 +15,18 @@ export class table<T extends object> implements type_table {
     proto?: any;
     partitions_by_partition_name: { [key: string]: type_partition };
     partition_name_by_primary_key: { [key: string]: string };
-    connected_tables: { [key: string]: string };
+
+    table_connections: { [key: string]: {join_key: string, join_type: type_join_type} };
 
     delete_key_list: string[];
 
-    constructor({ table_name, indices, storage_location, primary_key, proto, delete_key_list, connected_tables }: type_table_init) {
+    constructor({ table_name, indices, storage_location, primary_key, proto, delete_key_list }: type_table_init) {
         this.table_name = table_name;
         this.indices = indices || [];
         this.primary_key = primary_key;
         this.proto = proto;
-        this.connected_tables = connected_tables || {};
+
+        this.table_connections = {};
 
         this.partitions_by_partition_name = {};
         this.partition_name_by_primary_key = {};
@@ -46,7 +48,7 @@ export class table<T extends object> implements type_table {
                 partition_names: Object.keys(this.partitions_by_partition_name),
                 output_file_path: this.output_file_path,
                 storage_location: this.storage_location,
-                connected_tables: this.connected_tables,
+                table_connections: this.table_connections
             }
             let data = JSON.stringify(output_data, null, 2);
 
@@ -96,13 +98,13 @@ export class table<T extends object> implements type_table {
             let data = await fs.readFile(this.output_file_path, 'utf-8');
             let parsed_data = JSON.parse(data);
 
-            let { table_name, indices, primary_key, partition_names, storage_location, connected_tables } = parsed_data;
+            let { table_name, indices, primary_key, partition_names, storage_location, table_connections } = parsed_data;
 
             this.table_name = table_name;
             this.indices = indices;
             this.primary_key = primary_key;
             this.storage_location = storage_location;
-            this.connected_tables = connected_tables;
+            this.table_connections = table_connections;
 
             // Collecting promises for each partition read operation
             const partitionReadPromises = partition_names.map(async (partition_name: string) => {
@@ -472,6 +474,7 @@ export class table<T extends object> implements type_table {
 
     find(input_query?: type_loose_query): results<T> {
 
+        console.log('In find', { input_query, table_name: this.table_name })
         if (!input_query) {
             return new results(Object.values(this.partitions_by_partition_name).map(partition => Object.values(partition.data)).flat());
         }
@@ -534,10 +537,10 @@ export class table<T extends object> implements type_table {
         }
     }
 
-    get_foreign_key(foreign_table_name: string): string | null {
-        if (!this.connected_tables) {
+    get_foreign_key(foreign_table_name: string): type_join_criteria | null {
+        if (!this.table_connections) {
             return null;
         }
-        return this.connected_tables[foreign_table_name];
+        return this.table_connections[foreign_table_name];
     }
 }

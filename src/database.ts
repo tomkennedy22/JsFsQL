@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { type_database, type_table } from "./types";
+import { type_connection_init, type_database, type_join_type, type_table } from "./types";
 import { table } from "./table";
 
 
@@ -20,20 +20,34 @@ export class database implements type_database {
         this.output_file_path = `${this.storage_location}/_${dbname}.json`;
     }
 
-    add_table({ table_name, indices, primary_key, proto, delete_key_list, connected_tables }: { table_name: string, indices: string[], primary_key: string, proto?: any, delete_key_list: string[], connected_tables: {[key:string]: string} }): type_table {
+    add_table({ table_name, indices, primary_key, proto, delete_key_list }: { table_name: string, indices: string[], primary_key: string, proto?: any, delete_key_list: string[] }): type_table {
 
         if (!table_name) {
             throw new Error('Table name is required');
         }
 
         if (!this.tables.hasOwnProperty(table_name)) {
-            let new_table = new table({ table_name, indices, storage_location: this.storage_location, dbname: this.dbname, primary_key, proto, delete_key_list, connected_tables });
+            let new_table = new table({ table_name, indices, storage_location: this.storage_location, dbname: this.dbname, primary_key, proto, delete_key_list });
             this.tables[table_name] = new_table;
             return new_table as type_table;
         }
         else {
             return this.tables[table_name] as type_table;
         }
+    }
+
+    add_connection({table_a_name, table_b_name, join_key, join_type}: type_connection_init): void{
+        let table_a = this.tables[table_a_name];
+        let table_b = this.tables[table_b_name];
+
+        let opposite_join_type: {[key in type_join_type]: type_join_type} = {
+            'one_to_many': 'many_to_one',
+            'many_to_one': 'one_to_many',
+            'one_to_one': 'one_to_one',
+        }
+        
+        table_a.table_connections[table_b_name] = {join_key, join_type};
+        table_b.table_connections[table_a_name] = {join_key, join_type: opposite_join_type[join_type]};
     }
 
     save_database = async () => {
@@ -70,9 +84,9 @@ export class database implements type_database {
 
             // Collecting promises for each table read operation
             const tableReadPromises = tables.map((table_info: any) => {
-                let { table_name, indices, primary_key, delete_key_list, connected_tables } = table_info;
+                let { table_name, indices, primary_key, delete_key_list } = table_info;
                 // Assume add_table returns an instance with a read_from_file method
-                table_info.table_obj = this.add_table({ table_name, indices, primary_key, proto: null, delete_key_list, connected_tables });
+                table_info.table_obj = this.add_table({ table_name, indices, primary_key, proto: null, delete_key_list });
                 // Start reading from file and return the promise to be awaited
                 return table_info.table_obj.read_from_file();
             });

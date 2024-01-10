@@ -775,19 +775,35 @@ const test = async () => {
 
     let league_id = 1;
     let season = 2023;
+    let query_addons = {
+        'league_season': { league_id, season },
+    }
 
-    let result = join(
+    // let result = join(
+    //     db,
+    //     'league_season',
+    //     ['league', 'tier_season', 'tier', 'conference_season', 'conference', 'division_season', 'division'],
+    //     {
+    //         'league_season': { league_id, season },
+    //     }
+    // );
+
+    let result_2 = join(
         db,
         'league_season',
-        ['league', 'tier_season', 'conference_season', 'conference', 'division_season', 'division'],
+        ['league', 'tier_season', 'tier', 'conference_season', 'conference', 'division_season', 'division'],
         {
             'league_season': { league_id, season },
-        }
+        },
+        "division_season"
     );
 
     // let result = join(db, 'league_season', join_critera);
-    console.log('result', result)
-    writeJsonToFile('join_test.json', result);
+    // console.log('result', result)
+    // writeJsonToFile('join_test.json', result);
+
+    // console.log('result_2', result_2)
+    writeJsonToFile('join_test_2.json', result_2);
 
     // await db.save_database()
 }

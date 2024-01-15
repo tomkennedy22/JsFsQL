@@ -45,9 +45,18 @@ export class database implements type_database {
             'many_to_one': 'one_to_many',
             'one_to_one': 'one_to_one',
         }
+
+        if (!table_a){
+            throw new Error(`Table does not exist for connection - ${table_a_name}`);
+        }
+        else if (!table_b){
+            throw new Error(`Table does not exist for connection - ${table_b_name}`);
+        }
+
         
         table_a.table_connections[table_b_name] = {join_key, join_type};
         table_b.table_connections[table_a_name] = {join_key, join_type: opposite_join_type[join_type]};
+        console.log('Added connection', {table_a_name, table_b_name, join_key, join_type})
     }
 
     save_database = async () => {

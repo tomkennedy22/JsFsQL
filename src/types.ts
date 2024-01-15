@@ -72,7 +72,9 @@ export type type_table = {
     output_to_file: () => Promise<void>;
     filter: (data: any, query_field: type_query_field, query_clause: type_query_clause) => any[];
     index_partition_filter: (partitions: type_partition[], index_name: string, query_clause: type_query_clause) => type_partition[];
-    get_foreign_key: (foreign_table_name: string) => type_join_criteria | null;
+    get_table_connection: (foreign_table_name: string) => type_join_criteria | null;
+    get_all_foreign_keys: () => string[];
+    get_foreign_keys_and_primary_keys: () => string[];
 }
 
 // Defines a query field as a string, representing the field to query within data records.
@@ -121,6 +123,7 @@ export type type_database = {
     output_file_path: string;
 
     add_table: ({ table_name, indices, primary_key, proto }: type_table_init) => type_table;
+    add_connection: ({ table_a_name, table_b_name, join_key, join_type }: type_connection_init) => void;
     save_database: () => Promise<void>;
     read_from_file: () => Promise<void>;
 }

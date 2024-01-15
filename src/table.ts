@@ -537,10 +537,22 @@ export class table<T extends object> implements type_table {
         }
     }
 
-    get_foreign_key(foreign_table_name: string): type_join_criteria | null {
+    get_table_connection(foreign_table_name: string): type_join_criteria | null {
         if (!this.table_connections) {
             return null;
         }
         return this.table_connections[foreign_table_name];
+    }
+
+    get_all_foreign_keys(): string[] {
+        if (!this.table_connections) {
+            return [];
+        }
+
+        return Object.values(this.table_connections).map(connection => connection.join_key);
+    }
+
+    get_foreign_keys_and_primary_keys(): string[] {
+        return [...(new Set([...this.get_all_foreign_keys(), this.primary_key]))];
     }
 }

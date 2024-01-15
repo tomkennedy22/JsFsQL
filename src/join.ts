@@ -12,25 +12,46 @@ type join_results = {
     tables: { [key: string]: table_join_results };
 }
 
+export const highest_parent = (db: type_database, table_names: string[]) => {
+    let tables_without_parent = new Set(table_names);
+
+    for (let table_name of table_names) {
+        let table = db.tables[table_name];
+        let table_connections = table.table_connections;
+
+        for (let connected_table_name in table_connections) {
+            let connection = table_connections[connected_table_name];
+            if (connection.join_type === 'many_to_one' && table_names.includes(connected_table_name)) {
+                tables_without_parent.delete(table_name);
+            }
+        }
+    }
+
+    return tables_without_parent.keys().next().value;
+}
+
 export const join = (
     db: type_database,
     base_table_name: string,
     include_table_names: string[],
     query_addons?: { [key: string]: type_loose_query },
-    invert_from?: string
 ): join_results => {
 
     let join_tracker: join_results = { results: [], tables: {} };
     let all_tables_needed = new Set([base_table_name, ...include_table_names]);
+
+    let first_table = highest_parent(db, [...all_tables_needed]);
+    console.log('join', { first_table, db, base_table_name, include_table_names, query_addons })
+
     query_addons = query_addons || {};
-    let join_from_table_results = join_for_table(db, base_table_name, all_tables_needed, query_addons, join_tracker);
+    let join_from_table_results = join_for_table(db, first_table, all_tables_needed, query_addons, join_tracker);
 
-    console.log('join_from_table_results - DONT HAVE INVERT FROM', { db, base_table: db.tables[base_table_name], base_table_conn: db.tables[base_table_name].table_connections, invert_from: invert_from, join_from_table_results, query_addons })
+    console.log('join_from_table_results - DONT HAVE INVERT FROM', { db, base_table: db.tables[base_table_name], base_table_conn: db.tables[base_table_name].table_connections, join_from_table_results, query_addons })
 
-    if (invert_from) {
+    if (first_table !== base_table_name) {
         all_tables_needed = new Set([base_table_name, ...include_table_names]);
-        console.log('join_from_table_results', invert_from, join_from_table_results, query_addons)
-        join_from_table_results = join_for_table(db, invert_from, all_tables_needed, query_addons, join_tracker);
+        console.log('join_from_table_results', base_table_name, join_from_table_results, query_addons)
+        join_from_table_results = join_for_table(db, base_table_name, all_tables_needed, query_addons, join_tracker);
     }
 
     return join_from_table_results;
@@ -51,7 +72,11 @@ const add_to_query_addons = (query_addons: { [key: string]: type_loose_query } |
         query_addons[table_name] = {};
     }
 
-    query_addons[table_name] = { ...query_addons[table_name], ...query_addon };
+    for (let key in query_addon) {
+        if (!query_addons[table_name][key]) {
+            query_addons[table_name][key] = query_addon[key];
+        }
+    }
 }
 
 const join_for_table = (
@@ -85,14 +110,14 @@ const join_for_table = (
         join_tracker.tables[table_name].groups[key] = group_by(data, key);
     }
 
-    console.log('join_for_table', { join_tracker, table_name, all_tables_needed, query_addons, table_connections })
+    // console.log('join_for_table', { join_tracker, table_name, all_tables_needed, query_addons, table_connections })
 
     for (let connected_table_name in table_connections) {
         if (!all_tables_needed.has(connected_table_name)) {
             continue;
         }
 
-        console.log('Looping connections of table', table_name, 'connected_table_name', connected_table_name, { query_addons })
+        // console.log('Looping connections of table', table_name, 'connected_table_name', connected_table_name, { query_addons })
 
         let connection = table_connections[connected_table_name];
         let connected_table = db.tables[connected_table_name];

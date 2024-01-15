@@ -4,7 +4,7 @@ import fs from "fs/promises";
 import path from "path";
 import { type_connection_init, type_database, type_loose_query, type_table_init } from "./types";
 import { distinct, get_from_dict, group_by, index_by, nest_children } from "./utils";
-import { join } from "./join";
+import { highest_parent, join } from "./join";
 
 function writeJsonToFile(filePath: string, data: object): void {
     try {
@@ -790,22 +790,25 @@ const test = async () => {
 
     let {results: result_2} = join(
         db,
-        'league_season',
-        ['league', 'tier_season', 'tier', 'conference_season', 'conference', 'division_season', 'division'],
-        {
-            'league_season': { league_id, season },
-        },
-        "division_season"
+        'division_season',
+        ['league_season', 'league', 'tier_season', 'tier', 'conference_season', 'conference', 'division_season', 'division'],
+        // {
+        //     'league_season': { league_id, season },
+        // },
+        query_addons
     );
 
     // let result = join(db, 'league_season', join_critera);
-    console.log('result', result)
+    // console.log('result', result)
     writeJsonToFile('join_test.json', result);
 
-    console.log('result_2', result_2)
+    // console.log('result_2', result_2)
     writeJsonToFile('join_test_2.json', result_2);
 
-    await db.save_database()
+    // await db.save_database()
+
+    let hp = highest_parent(db, ['league_season', 'tier_season', 'conference_season', 'division_season', 'team_season'])
+    console.log('hp', hp)
 }
 
 test();

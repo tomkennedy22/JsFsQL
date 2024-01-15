@@ -18,7 +18,7 @@ export const join = (
     include_table_names: string[],
     query_addons?: { [key: string]: type_loose_query },
     invert_from?: string
-): any => {
+): join_results => {
 
     let join_tracker: join_results = { results: [], tables: {} };
     let all_tables_needed = new Set([base_table_name, ...include_table_names]);

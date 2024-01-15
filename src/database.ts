@@ -10,14 +10,16 @@ export class database implements type_database {
     folder_path: string;
     storage_location: string;
     output_file_path: string;
+    do_compression: boolean;
 
-    constructor({ dbname, folder_path }: { dbname: string, folder_path: string }) {
+    constructor({ dbname, folder_path, do_compression }: { dbname: string, folder_path: string, do_compression: boolean }) {
         this.dbname = dbname;
         this.folder_path = folder_path;
         this.tables = {};
 
         this.storage_location = `${folder_path}/${dbname}`;
         this.output_file_path = `${this.storage_location}/_${dbname}.json`;
+        this.do_compression = true;
     }
 
     add_table({ table_name, indices, primary_key, proto, delete_key_list }: { table_name: string, indices: string[], primary_key: string, proto?: any, delete_key_list: string[] }): type_table {
@@ -27,7 +29,7 @@ export class database implements type_database {
         }
 
         if (!this.tables.hasOwnProperty(table_name)) {
-            let new_table = new table({ table_name, indices, storage_location: this.storage_location, dbname: this.dbname, primary_key, proto, delete_key_list });
+            let new_table = new table({ table_name, indices, storage_location: this.storage_location, dbname: this.dbname, primary_key, proto, delete_key_list, do_compression: this.do_compression });
             this.tables[table_name] = new_table;
             return new_table as type_table;
         }
@@ -36,27 +38,27 @@ export class database implements type_database {
         }
     }
 
-    add_connection({table_a_name, table_b_name, join_key, join_type}: type_connection_init): void{
+    add_connection({ table_a_name, table_b_name, join_key, join_type }: type_connection_init): void {
         let table_a = this.tables[table_a_name];
         let table_b = this.tables[table_b_name];
 
-        let opposite_join_type: {[key in type_join_type]: type_join_type} = {
+        let opposite_join_type: { [key in type_join_type]: type_join_type } = {
             'one_to_many': 'many_to_one',
             'many_to_one': 'one_to_many',
             'one_to_one': 'one_to_one',
         }
 
-        if (!table_a){
+        if (!table_a) {
             throw new Error(`Table does not exist for connection - ${table_a_name}`);
         }
-        else if (!table_b){
+        else if (!table_b) {
             throw new Error(`Table does not exist for connection - ${table_b_name}`);
         }
 
-        
-        table_a.table_connections[table_b_name] = {join_key, join_type};
-        table_b.table_connections[table_a_name] = {join_key, join_type: opposite_join_type[join_type]};
-        console.log('Added connection', {table_a_name, table_b_name, join_key, join_type})
+
+        table_a.table_connections[table_b_name] = { join_key, join_type };
+        table_b.table_connections[table_a_name] = { join_key, join_type: opposite_join_type[join_type] };
+        console.log('Added connection', { table_a_name, table_b_name, join_key, join_type })
     }
 
     save_database = async () => {
@@ -68,6 +70,7 @@ export class database implements type_database {
             tables: table_info,
             storage_location: this.storage_location,
             output_file_path: this.output_file_path,
+            do_compression: this.do_compression,
         }
 
         let data = JSON.stringify(save_data, null, 2);
@@ -86,10 +89,11 @@ export class database implements type_database {
         try {
             let data = await fs.readFile(this.output_file_path, 'utf-8');
             let parsed_data = JSON.parse(data);
-            let { dbname, tables, storage_location } = parsed_data;
+            let { dbname, tables, storage_location, do_compression } = parsed_data;
 
             this.dbname = dbname;
             this.storage_location = storage_location;
+            this.do_compression = do_compression;
 
             // Collecting promises for each table read operation
             const tableReadPromises = tables.map((table_info: any) => {

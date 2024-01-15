@@ -2,6 +2,11 @@ import fs from "fs/promises";
 import path from "path";
 import { type_partition, type_partition_index } from "./types";
 import { deep_copy, get_from_dict, partition_name_from_partition_index, set_to_dict } from "./utils";
+import zlib from 'zlib';
+import util from 'util';
+
+const gunzip = util.promisify(zlib.gunzip);
+const gzip = util.promisify(zlib.gzip);
 
 type PartitionData<T extends object> = { [key: string]: T };
 
@@ -11,14 +16,18 @@ export class partition<T extends object> implements type_partition {
     partition_indices: type_partition_index;
     storage_location: string;
     proto: any;
-    output_file_path: string;
+    json_output_file_path: string;
+    txt_output_file_path: string;
     data: { [key: string]: any };
     primary_key: string;
     is_dirty: boolean = true; // Default is_dirty to true to indicate the partition requires saving upon creation.
     write_lock: boolean = false; // Default write_lock to false to indicate the partition is not currently being saved.
+    do_compression: boolean;
+
+    last_update_dt: Date;
 
     // Constructor to initialize a new partition with given properties.
-    constructor({ storage_location, partition_indices, primary_key, proto }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T }) {
+    constructor({ storage_location, partition_indices, primary_key, proto, do_compression }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T, do_compression: boolean }) {
         this.partition_indices = partition_indices;
         this.primary_key = primary_key;
         this.proto = proto;
@@ -27,7 +36,17 @@ export class partition<T extends object> implements type_partition {
         this.partition_name = partition_name_from_partition_index(partition_indices);
 
         this.storage_location = storage_location;
-        this.output_file_path = `${storage_location}/${this.partition_name}.json`; // Storage location is derived from the table folder path and partition name.
+        this.json_output_file_path = `${storage_location}/${this.partition_name}.json`; // Storage location is derived from the table folder path and partition name.
+        this.txt_output_file_path = `${storage_location}/${this.partition_name}.txt`; // Storage location is derived from the table folder path and partition name.
+
+        this.last_update_dt = new Date();
+        this.do_compression = do_compression;
+    }
+
+    update_last_update_dt = () => {
+        if (this.is_dirty) {
+            this.last_update_dt = new Date();
+        }
     }
 
     /**
@@ -55,6 +74,8 @@ export class partition<T extends object> implements type_partition {
             this.is_dirty = true;
         });
 
+        this.update_last_update_dt()
+
     }
 
     update(row: T, fields_to_drop?: any[]): void {
@@ -77,6 +98,7 @@ export class partition<T extends object> implements type_partition {
 
         // Update the row and mark partition as dirty
         this.is_dirty = true;
+        this.update_last_update_dt()
     }
 
 
@@ -98,18 +120,37 @@ export class partition<T extends object> implements type_partition {
             this.is_dirty = false;
 
             // Serialize the object to a JSON string with pretty-printing
-            let data = JSON.stringify(this, null, 2);
+            let data = JSON.stringify({
+                partition_name: this.partition_name,
+                partition_indices: this.partition_indices,
+                partition_data: this.data,
+                storage_location: this.storage_location,
+                primary_key: this.primary_key,
+                last_update_dt: this.last_update_dt
+            }, null, 2);
+
+            let data_to_write: string | Buffer = '';
+            let output_file_path: string = '';
+
+            if (this.do_compression) {
+                data_to_write = await gzip(data);
+                output_file_path = this.txt_output_file_path;
+            }
+            else {
+                data_to_write = data;
+                output_file_path = this.json_output_file_path;
+            }
 
             // Ensure the directory exists where the file will be stored
-            const dirname = path.dirname(this.output_file_path);
+            const dirname = path.dirname(output_file_path);
             await fs.mkdir(dirname, { recursive: true });
 
             // Write to a temporary file first
-            const tempFilePath = this.output_file_path + '.tmp';
-            await fs.writeFile(tempFilePath, data);
+            const tempFilePath = output_file_path + '.tmp';
+            await fs.writeFile(tempFilePath, data_to_write);
 
             // Rename the temporary file to the actual file name (atomic operation)
-            await fs.rename(tempFilePath, this.output_file_path);
+            await fs.rename(tempFilePath, output_file_path);
         } catch (error) {
             console.error("Error writing file:", error);
             // Revert 'is_dirty' if write fails
@@ -121,14 +162,23 @@ export class partition<T extends object> implements type_partition {
     }
 
     read_from_file = async () => {
-        // // console.trace('Reading from file')
+        let output_file_path = this.do_compression ? this.txt_output_file_path : this.json_output_file_path;
+
         try {
-            let data = await fs.readFile(this.output_file_path, 'utf-8');
-            let parsed_data = JSON.parse(data);
 
-            let { partition_name, partition_indices, data: partition_data, storage_location, primary_key } = parsed_data;
+            let data_from_file = await fs.readFile(output_file_path, 'utf-8');
+            let data_to_parse;
 
-            // // console.log({ partition_name, partition_indices, partition_data, storage_location, primary_key })
+            if (this.do_compression){
+                data_to_parse = await gunzip(data_from_file);
+            }
+            else {
+                data_to_parse = data_from_file;
+            }
+
+            let parsed_data = JSON.parse(data_to_parse.toString());
+
+            let { partition_name, partition_indices, data: partition_data, storage_location, primary_key, last_update_dt } = parsed_data;
 
             this.partition_name = partition_name;
             this.partition_indices = partition_indices;
@@ -137,24 +187,27 @@ export class partition<T extends object> implements type_partition {
             );
             this.storage_location = storage_location;
             this.primary_key = primary_key;
+            this.last_update_dt = new Date(last_update_dt);
 
             return Promise.resolve();
         }
         catch (error) {
-            console.log('Error reading from file', error, this.output_file_path)
+            console.log('Error reading from file', error, output_file_path)
         }
     }
 
     delete_file = async () => {
+        let output_file_path = this.do_compression ? this.txt_output_file_path : this.json_output_file_path;
+
         try {
             this.data = {};
 
             // Delete the file associated with this partition
-            await fs.unlink(this.output_file_path);
+            await fs.unlink(output_file_path);
             // console.log(`Deleted file at: ${this.output_file_path}`);
         } catch (error) {
             // Handle possible errors, such as file not existing
-            console.error(`Error deleting file at: ${this.output_file_path}`, error);
+            console.error(`Error deleting file at: ${output_file_path}`, error);
         }
 
         return Promise.resolve();

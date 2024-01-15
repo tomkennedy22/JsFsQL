@@ -22,6 +22,8 @@ export type type_partition = {
     proto?: any;
     data: { [key: string]: any };
     storage_location: string;
+    json_output_file_path: string;
+    txt_output_file_path: string;
     primary_key: string;
     is_dirty: boolean;
     write_lock: boolean;
@@ -46,6 +48,7 @@ export type type_table = {
     output_file_path: string; // File system path where table data is stored.
     primary_key: string; // Field used to uniquely identify records within the table.
     proto?: any; // Prototype object used to instantiate new records.
+    do_compression:boolean;
 
     table_connections: { [key: string]: {join_key: string, join_type: type_join_type} };
 
@@ -106,6 +109,7 @@ export type type_table_init = {
     primary_key: string;
     proto?: any;
     delete_key_list: string[];
+    do_compression?: boolean;
 }
 
 export type type_connection_init = {

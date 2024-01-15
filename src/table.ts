@@ -15,12 +15,13 @@ export class table<T extends object> implements type_table {
     proto?: any;
     partitions_by_partition_name: { [key: string]: type_partition };
     partition_name_by_primary_key: { [key: string]: string };
+    do_compression: boolean;
 
     table_connections: { [key: string]: {join_key: string, join_type: type_join_type} };
 
     delete_key_list: string[];
 
-    constructor({ table_name, indices, storage_location, primary_key, proto, delete_key_list }: type_table_init) {
+    constructor({ table_name, indices, storage_location, primary_key, proto, delete_key_list, do_compression }: type_table_init) {
         this.table_name = table_name;
         this.indices = indices || [];
         this.primary_key = primary_key;
@@ -32,6 +33,7 @@ export class table<T extends object> implements type_table {
         this.partition_name_by_primary_key = {};
 
         this.delete_key_list = delete_key_list || [];
+        this.do_compression = do_compression || false;
 
         this.storage_location = `${storage_location}/${table_name}`;
         this.output_file_path = `${this.storage_location}/_${table_name}.json`;
@@ -48,7 +50,8 @@ export class table<T extends object> implements type_table {
                 partition_names: Object.keys(this.partitions_by_partition_name),
                 output_file_path: this.output_file_path,
                 storage_location: this.storage_location,
-                table_connections: this.table_connections
+                table_connections: this.table_connections,
+                do_compression: this.do_compression,
             }
             let data = JSON.stringify(output_data, null, 2);
 
@@ -98,13 +101,14 @@ export class table<T extends object> implements type_table {
             let data = await fs.readFile(this.output_file_path, 'utf-8');
             let parsed_data = JSON.parse(data);
 
-            let { table_name, indices, primary_key, partition_names, storage_location, table_connections } = parsed_data;
+            let { table_name, indices, primary_key, partition_names, storage_location, table_connections, do_compression } = parsed_data;
 
             this.table_name = table_name;
             this.indices = indices;
             this.primary_key = primary_key;
             this.storage_location = storage_location;
             this.table_connections = table_connections;
+            this.do_compression = do_compression;
 
             // Collecting promises for each partition read operation
             const partitionReadPromises = partition_names.map(async (partition_name: string) => {
@@ -117,7 +121,7 @@ export class table<T extends object> implements type_table {
                     let { partition_indices, data } = parsed_partition_data;
 
                     // Create and assign partition instance
-                    let new_partition = new partition({ storage_location, partition_indices, primary_key, proto: this.proto });
+                    let new_partition = new partition({ storage_location, partition_indices, primary_key, proto: this.proto, do_compression: this.do_compression });
                     new_partition.data = data;
                     new_partition.is_dirty = false;
 
@@ -183,6 +187,7 @@ export class table<T extends object> implements type_table {
                     partition_indices,
                     primary_key: this.primary_key,
                     proto: this.proto,
+                    do_compression: this.do_compression
                 });
             }
 

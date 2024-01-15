@@ -23,8 +23,8 @@ const test = async () => {
     console.log(`\n\n\n\n\n\n\n Starting new test suite!`)
 
     let folder_path = path.resolve(__dirname, `../databases/`)
-    let db = new database({ dbname: "test_db", folder_path });
-    // await db.read_from_file();
+    let db = new database({ dbname: "test_db", folder_path, do_compression: true });
+    await db.read_from_file();
 
 
     const db_collection_list: type_table_init[] = [
@@ -805,7 +805,7 @@ const test = async () => {
     console.log('result_2', result_2)
     writeJsonToFile('join_test_2.json', result_2);
 
-    // await db.save_database()
+    await db.save_database()
 }
 
 test();

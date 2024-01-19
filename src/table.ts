@@ -66,7 +66,7 @@ export class table<T extends object> implements type_table {
                 let wait_limit = 10;
                 let wait_time = 50;
                 while (partition.write_lock && wait_count < wait_limit) {
-                    console.log('Waiting for write lock on partition', partition.partition_name, '. Wait count: ', wait_count)
+                    // console.log('Waiting for write lock on partition', partition.partition_name, '. Wait count: ', wait_count)
                     wait_time *= 1.5;
                     wait_count += 1;
 
@@ -112,40 +112,22 @@ export class table<T extends object> implements type_table {
 
             // Collecting promises for each partition read operation
             const partitionReadPromises = partition_names.map(async (partition_name: string) => {
-                // console.log('Reading partition', { partition_name });
-                let partition_location = `${storage_location}/${partition_name}.json`;
+                // let partition_location = `${storage_location}/${partition_name}.json`;
+                let partition_indices = {};
+                let new_partition = new partition({ storage_location, partition_indices, primary_key, proto: this.proto, do_compression: this.do_compression, partition_name });
+                await new_partition.read_from_file();
 
-                try {
-                    let partition_data = await fs.readFile(partition_location, 'utf-8');
-                    let parsed_partition_data = JSON.parse(partition_data);
-                    let { partition_indices, data } = parsed_partition_data;
-
-                    // Create and assign partition instance
-                    let new_partition = new partition({ storage_location, partition_indices, primary_key, proto: this.proto, do_compression: this.do_compression });
-                    new_partition.data = data;
-                    new_partition.is_dirty = false;
-
-                    this.partitions_by_partition_name[partition_name] = new_partition;
-
-                    // Process primary keys if necessary
-                    for (let pk in data) {
-                        this.partition_name_by_primary_key[pk] = partition_name;
-                    }
-
-                    console.log('Successfully read partition', table_name, partition_name, partition_location)
+                for (let pk in new_partition.data) {
+                    this.partition_name_by_primary_key[pk] = partition_name;
                 }
-                catch (error) {
-                    console.log('\n\n*******Error reading partition*******', { error, partition_location, partition_name, table_name, storage_location })
-                }
+
+                this.partitions_by_partition_name[partition_name] = new_partition;
             });
 
             // Wait for all partition read operations to complete
             await Promise.all(partitionReadPromises);
 
-            // console.log('All partitions have been read from file');
-
             Promise.resolve();
-
         }
         catch (error) {
             console.log('Error reading from file', error, this.output_file_path)
@@ -170,7 +152,6 @@ export class table<T extends object> implements type_table {
             let row_pk = get_from_dict(row, this.primary_key); // Capture the primary key value from the row
 
             let partition_indices: type_partition_index = {};
-            // // console.log('In insert', { row, indices: this.indices })
             // Generate partition index keys from the row based on the table indices
             this.indices.forEach(index_name => {
                 partition_indices[index_name] = get_from_dict(row, index_name);
@@ -479,7 +460,7 @@ export class table<T extends object> implements type_table {
 
     find(input_query?: type_loose_query): results<T> {
 
-        console.log('In find', { input_query, table_name: this.table_name })
+        // console.log('In find', { input_query, table_name: this.table_name })
         if (!input_query) {
             return new results(Object.values(this.partitions_by_partition_name).map(partition => Object.values(partition.data)).flat());
         }

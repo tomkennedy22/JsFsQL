@@ -19,7 +19,7 @@ export class database implements type_database {
 
         this.storage_location = `${folder_path}/${dbname}`;
         this.output_file_path = `${this.storage_location}/_${dbname}.json`;
-        this.do_compression = true;
+        this.do_compression = do_compression;
     }
 
     add_table({ table_name, indices, primary_key, proto, delete_key_list }: { table_name: string, indices: string[], primary_key: string, proto?: any, delete_key_list: string[] }): type_table {

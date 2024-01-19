@@ -27,20 +27,20 @@ export class partition<T extends object> implements type_partition {
     last_update_dt: Date;
 
     // Constructor to initialize a new partition with given properties.
-    constructor({ storage_location, partition_indices, primary_key, proto, do_compression }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T, do_compression: boolean }) {
+    constructor({ storage_location, partition_indices, primary_key, proto, do_compression, partition_name }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T, do_compression: boolean, partition_name?:string }) {
         this.partition_indices = partition_indices;
         this.primary_key = primary_key;
         this.proto = proto;
         this.data = {}; // Initialize data as an empty object.
         // Generate a partition name from the provided indices and form the storage location path.
-        this.partition_name = partition_name_from_partition_index(partition_indices);
+        this.partition_name = partition_name || partition_name_from_partition_index(partition_indices);
 
         this.storage_location = storage_location;
         this.json_output_file_path = `${storage_location}/${this.partition_name}.json`; // Storage location is derived from the table folder path and partition name.
         this.txt_output_file_path = `${storage_location}/${this.partition_name}.txt`; // Storage location is derived from the table folder path and partition name.
 
         this.last_update_dt = new Date();
-        this.do_compression = do_compression;
+        this.do_compression = do_compression || false;
     }
 
     update_last_update_dt = () => {
@@ -123,7 +123,7 @@ export class partition<T extends object> implements type_partition {
             let data = JSON.stringify({
                 partition_name: this.partition_name,
                 partition_indices: this.partition_indices,
-                partition_data: this.data,
+                data: this.data,
                 storage_location: this.storage_location,
                 primary_key: this.primary_key,
                 last_update_dt: this.last_update_dt
@@ -163,28 +163,28 @@ export class partition<T extends object> implements type_partition {
 
     read_from_file = async () => {
         let output_file_path = this.do_compression ? this.txt_output_file_path : this.json_output_file_path;
+        let proto = this.proto;
 
         try {
 
-            let data_from_file = await fs.readFile(output_file_path, 'utf-8');
+            let data_from_file = await fs.readFile(output_file_path);
             let data_to_parse;
 
-            if (this.do_compression){
-                data_to_parse = await gunzip(data_from_file);
+            if (this.do_compression) {
+                const decompressed_data = await gunzip(data_from_file);
+                data_to_parse = decompressed_data.toString('utf-8');
             }
             else {
-                data_to_parse = data_from_file;
+                data_to_parse = data_from_file.toString('utf-8');
             }
 
-            let parsed_data = JSON.parse(data_to_parse.toString());
+            let parsed_data = JSON.parse(data_to_parse);
 
-            let { partition_name, partition_indices, data: partition_data, storage_location, primary_key, last_update_dt } = parsed_data;
+            let { partition_name, partition_indices, data, storage_location, primary_key, last_update_dt } = parsed_data;
 
             this.partition_name = partition_name;
             this.partition_indices = partition_indices;
-            this.data = Object.fromEntries(
-                Object.entries(partition_data).map(([key, value]) => [key, new this.proto(value)])
-            );
+            this.data = data;
             this.storage_location = storage_location;
             this.primary_key = primary_key;
             this.last_update_dt = new Date(last_update_dt);

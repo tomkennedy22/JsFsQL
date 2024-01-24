@@ -807,7 +807,7 @@ const test = async () => {
 
     // await db.save_database()
 
-    let hp = highest_parent(db, ['league_season', 'tier_season', 'conference_season', 'division_season', 'team_season'])
+    let hp = highest_parent(db, ['league_season', 'tier_season', 'conference_season', 'division_season', 'team_season'], {})
     console.log('hp', hp)
 }
 

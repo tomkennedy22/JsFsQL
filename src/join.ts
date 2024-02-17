@@ -52,7 +52,9 @@ export const highest_parent = (db: type_database, table_names: string[], query_a
     else if (tables_without_parent.length > 1) {
         let tables_without_parent_with_query_addons = tables_without_parent.filter(table_name => query_addons[table_name]);
         if (tables_without_parent_with_query_addons.length === 0) {
-            throw new Error('Multiple tables without parent found, but none have query addons');
+            console.log('Multiple tables without parent found, but none have query addons');
+            
+            return tables_without_parent[0]
         }
         else {
             return tables_without_parent_with_query_addons[0];

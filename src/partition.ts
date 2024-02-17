@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
-import { type_partition, type_partition_index } from "./types";
-import { deep_copy, get_from_dict, partition_name_from_partition_index, set_to_dict } from "./utils";
+import { type_partition, type_partition_metadata } from "./types";
+import { deep_copy, get_from_dict, partition_name_from_partition_metadata, set_to_dict } from "./utils";
 import zlib from 'zlib';
 import util from 'util';
 
@@ -13,7 +13,7 @@ type PartitionData<T extends object> = { [key: string]: T };
 // The Partition class definition, implementing the Partition type.
 export class partition<T extends object> implements type_partition {
     partition_name: string;
-    partition_indices: type_partition_index;
+    partition_metadata: type_partition_metadata;
     storage_location: string;
     proto: any;
     json_output_file_path: string;
@@ -27,13 +27,13 @@ export class partition<T extends object> implements type_partition {
     last_update_dt: Date;
 
     // Constructor to initialize a new partition with given properties.
-    constructor({ storage_location, partition_indices, primary_key, proto, do_compression, partition_name }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T, do_compression: boolean, partition_name?:string }) {
-        this.partition_indices = partition_indices;
+    constructor({ storage_location, partition_metadata, primary_key, proto, do_compression, partition_name }: { storage_location: string, partition_metadata: type_partition_metadata, primary_key: string, proto: new (data: T) => T, do_compression: boolean, partition_name?:string }) {
+        this.partition_metadata = partition_metadata;
         this.primary_key = primary_key;
         this.proto = proto;
         this.data = {}; // Initialize data as an empty object.
-        // Generate a partition name from the provided indices and form the storage location path.
-        this.partition_name = partition_name || partition_name_from_partition_index(partition_indices);
+        // Generate a partition name from the provided partitions and form the storage location path.
+        this.partition_name = partition_name || partition_name_from_partition_metadata(partition_metadata);
 
         this.storage_location = storage_location;
         this.json_output_file_path = `${storage_location}/${this.partition_name}.json`; // Storage location is derived from the table folder path and partition name.
@@ -122,7 +122,7 @@ export class partition<T extends object> implements type_partition {
             // Serialize the object to a JSON string with pretty-printing
             let data = JSON.stringify({
                 partition_name: this.partition_name,
-                partition_indices: this.partition_indices,
+                partition_metadata: this.partition_metadata,
                 data: this.data,
                 storage_location: this.storage_location,
                 primary_key: this.primary_key,
@@ -180,10 +180,10 @@ export class partition<T extends object> implements type_partition {
 
             let parsed_data = JSON.parse(data_to_parse);
 
-            let { partition_name, partition_indices, data, storage_location, primary_key, last_update_dt } = parsed_data;
+            let { partition_name, partition_metadata, data, storage_location, primary_key, last_update_dt } = parsed_data;
 
             this.partition_name = partition_name;
-            this.partition_indices = partition_indices;
+            this.partition_metadata = partition_metadata;
             this.data = data;
             this.storage_location = storage_location;
             this.primary_key = primary_key;

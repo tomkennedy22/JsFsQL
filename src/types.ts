@@ -1,7 +1,7 @@
 import { results } from "./results";
 
 // Type alias for a partition index, which is a map of keys to arbitrary values.
-export type type_partition_index = { [key: string]: any };
+export type type_partition_metadata = { [key: string]: any };
 
 export type type_results = {
     [key: string]: any;
@@ -18,15 +18,19 @@ export type type_results = {
 // Type definition for a Partition, outlining its structure and methods.
 export type type_partition = {
     partition_name: string;
-    partition_indices: type_partition_index;
-    proto?: any;
-    data: { [key: string]: any };
+    partition_metadata: type_partition_metadata;
     storage_location: string;
+    proto: any;
     json_output_file_path: string;
     txt_output_file_path: string;
+    data: { [key: string]: any };
     primary_key: string;
-    is_dirty: boolean;
-    write_lock: boolean;
+    is_dirty: boolean; // Default is_dirty to true to indicate the partition requires saving upon creation.
+    write_lock: boolean; // Default write_lock to false to indicate the partition is not currently being saved.
+    do_compression: boolean;
+
+    last_update_dt: Date;
+
     insert: (data: any) => void;
     update: (data: any[] | any, fields_to_drop?: any[]) => void;
     write_to_file: () => Promise<void>;
@@ -40,10 +44,11 @@ export type type_join_criteria = {
     join_type: type_join_type;
 }
 
-// Defines the structure for a database table, including its name, indices, storage strategy, and primary key.
+// Defines the structure for a database table, including its name, partitions, storage strategy, and primary key.
 export type type_table = {
     table_name: string; // Unique identifier for the table.
-    indices: string[]; // List of fields indexed for efficient querying.
+    partition_keys: string[]; // List of fields indexed for efficient querying.
+    index_keys?: string[]; // List of fields indexed for efficient querying.
     storage_location: string; // File system path where table data is stored.
     output_file_path: string; // File system path where table data is stored.
     primary_key: string; // Field used to uniquely identify records within the table.
@@ -55,6 +60,7 @@ export type type_table = {
     // Mappings for partition management based on partition names and primary keys.
     partitions_by_partition_name: { [key: string]: type_partition };
     partition_name_by_primary_key: { [key: string]: string };
+    partition_names_by_index: { [key: string]: { [key: string]: Set<string> } };
 
     delete_key_list: string[];
 
@@ -74,7 +80,7 @@ export type type_table = {
     findOne: (query?: type_loose_query) => any;
     output_to_file: () => Promise<void>;
     filter: (data: any, query_field: type_query_field, query_clause: type_query_clause) => any[];
-    index_partition_filter: (partitions: type_partition[], index_name: string, query_clause: type_query_clause) => type_partition[];
+    partition_filter: (partitions: type_partition[], index_name: string, query_clause: type_query_clause) => type_partition[];
     get_table_connection: (foreign_table_name: string) => type_join_criteria | null;
     get_all_foreign_keys: () => string[];
     get_foreign_keys_and_primary_keys: () => string[];
@@ -103,7 +109,8 @@ export type type_query = {
 
 export type type_table_init = {
     table_name: string;
-    indices: string[];
+    partition_keys: string[];
+    index_keys?: string[];
     storage_location?: string;
     dbname?: string;
     primary_key: string;
@@ -126,7 +133,7 @@ export type type_database = {
     storage_location: string;
     output_file_path: string;
 
-    add_table: ({ table_name, indices, primary_key, proto }: type_table_init) => type_table;
+    add_table: ({ table_name, partition_keys, index_keys, primary_key, proto }: type_table_init) => type_table;
     add_connection: ({ table_a_name, table_b_name, join_key, join_type }: type_connection_init) => void;
     save_database: () => Promise<void>;
     read_from_file: () => Promise<void>;

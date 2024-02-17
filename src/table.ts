@@ -1,29 +1,32 @@
 import fs from "fs/promises";
 import path from "path";
-import { type_join_criteria, type_join_type, type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_table, type_table_init } from "./types";
-import { get_from_dict, partition_name_from_partition_index } from "./utils";
+import { type_join_criteria, type_join_type, type_loose_query, type_partition, type_partition_metadata, type_query, type_query_clause, type_table, type_table_init } from "./types";
+import { get_from_dict, partition_name_from_partition_metadata } from "./utils";
 import { partition } from "./partition";
 import { results } from "./results";
 
 
 export class table<T extends object> implements type_table {
     table_name: string;
-    indices: string[];
+    partition_keys: string[];
+    index_keys: string[];
     storage_location: string;
     output_file_path: string;
     primary_key: string;
     proto?: any;
     partitions_by_partition_name: { [key: string]: type_partition };
     partition_name_by_primary_key: { [key: string]: string };
+    partition_names_by_index: { [key: string]: { [key: string]: Set<string> } };
     do_compression: boolean;
 
     table_connections: { [key: string]: {join_key: string, join_type: type_join_type} };
 
     delete_key_list: string[];
 
-    constructor({ table_name, indices, storage_location, primary_key, proto, delete_key_list, do_compression }: type_table_init) {
+    constructor({ table_name, partition_keys, index_keys, storage_location, primary_key, proto, delete_key_list, do_compression }: type_table_init) {
         this.table_name = table_name;
-        this.indices = indices || [];
+        this.partition_keys = partition_keys || [];
+        this.index_keys = index_keys || [];
         this.primary_key = primary_key;
         this.proto = proto;
 
@@ -31,6 +34,7 @@ export class table<T extends object> implements type_table {
 
         this.partitions_by_partition_name = {};
         this.partition_name_by_primary_key = {};
+        this.partition_names_by_index = {};
 
         this.delete_key_list = delete_key_list || [];
         this.do_compression = do_compression || false;
@@ -45,7 +49,8 @@ export class table<T extends object> implements type_table {
 
             let output_data = {
                 table_name: this.table_name,
-                indices: this.indices,
+                partition_keys: this.partition_keys,
+                index_keys: this.index_keys,
                 primary_key: this.primary_key,
                 partition_names: Object.keys(this.partitions_by_partition_name),
                 output_file_path: this.output_file_path,
@@ -101,10 +106,11 @@ export class table<T extends object> implements type_table {
             let data = await fs.readFile(this.output_file_path, 'utf-8');
             let parsed_data = JSON.parse(data);
 
-            let { table_name, indices, primary_key, partition_names, storage_location, table_connections, do_compression } = parsed_data;
+            let { table_name, partition_keys, index_keys, primary_key, partition_names, storage_location, table_connections, do_compression } = parsed_data;
 
             this.table_name = table_name;
-            this.indices = indices;
+            this.partition_keys = partition_keys;
+            this.index_keys = index_keys;
             this.primary_key = primary_key;
             this.storage_location = storage_location;
             this.table_connections = table_connections;
@@ -113,12 +119,26 @@ export class table<T extends object> implements type_table {
             // Collecting promises for each partition read operation
             const partitionReadPromises = partition_names.map(async (partition_name: string) => {
                 // let partition_location = `${storage_location}/${partition_name}.json`;
-                let partition_indices = {};
-                let new_partition = new partition({ storage_location, partition_indices, primary_key, proto: this.proto, do_compression: this.do_compression, partition_name });
+                let partition_metadata = {};
+                let new_partition = new partition({ storage_location, partition_metadata, primary_key, proto: this.proto, do_compression: this.do_compression, partition_name });
                 await new_partition.read_from_file();
 
                 for (let pk in new_partition.data) {
                     this.partition_name_by_primary_key[pk] = partition_name;
+
+                    for (let index_name in this.index_keys) {
+                        let index_value = get_from_dict(new_partition.data[pk], index_name);
+
+                        if (!this.partition_names_by_index[index_name]) {
+                            this.partition_names_by_index[index_name] = {};
+                        }
+
+                        if (!this.partition_names_by_index[index_name][index_value]){
+                            this.partition_names_by_index[index_name][index_value] = new Set<string>();
+                        }
+
+                        this.partition_names_by_index[index_name][index_value].add(partition_name);
+                    }
                 }
 
                 this.partitions_by_partition_name[partition_name] = new_partition;
@@ -151,21 +171,35 @@ export class table<T extends object> implements type_table {
 
             let row_pk = get_from_dict(row, this.primary_key); // Capture the primary key value from the row
 
-            let partition_indices: type_partition_index = {};
-            // Generate partition index keys from the row based on the table indices
-            this.indices.forEach(index_name => {
-                partition_indices[index_name] = get_from_dict(row, index_name);
+            let partition_metadata: type_partition_metadata = {};
+            // Generate partition index keys from the row based on the table partitions
+            this.partition_keys.forEach(partition_key => {
+                partition_metadata[partition_key] = get_from_dict(row, partition_key);
             });
 
-            // Determine the partition name from the indices for row placement
-            let partition_name = partition_name_from_partition_index(partition_indices);
+            // Determine the partition name from the partitions for row placement
+            let partition_name = partition_name_from_partition_metadata(partition_metadata);
             this.partition_name_by_primary_key[row_pk] = partition_name;
+
+            for (let index_name of this.index_keys) {
+                let index_value = get_from_dict(row, index_name);
+
+                if (!this.partition_names_by_index[index_name]) {
+                    this.partition_names_by_index[index_name] = {};
+                }
+
+                if (!this.partition_names_by_index[index_name][index_value]){
+                    this.partition_names_by_index[index_name][index_value] = new Set<string>();
+                }
+
+                this.partition_names_by_index[index_name][index_value].add(partition_name);
+            }
 
             // Create a new partition if it doesn't exist
             if (!this.partitions_by_partition_name.hasOwnProperty(partition_name)) {
                 this.partitions_by_partition_name[partition_name] = new partition({
                     storage_location: this.storage_location,
-                    partition_indices,
+                    partition_metadata,
                     primary_key: this.primary_key,
                     proto: this.proto,
                     do_compression: this.do_compression
@@ -292,6 +326,27 @@ export class table<T extends object> implements type_table {
         });
     }
 
+    index_filter(partitions: type_partition[], index_name: string, query_clause: type_query_clause): type_partition[] {
+        let filteredPartitions = partitions;
+
+        let index_values = this.partition_names_by_index[index_name];
+
+        for (const [query_function, query_value] of Object.entries(query_clause)) {
+            switch (query_function) {
+                case '$eq':
+                    filteredPartitions = filteredPartitions.filter(partition => index_values[query_value].has(partition.partition_name) );
+                    break;
+                default:
+                    throw new Error(`Unsupported query function: ${query_function}`);
+            }
+
+            // If there are no partitions left after filtering with a query function, break early
+            if (filteredPartitions.length === 0) break;
+        }
+
+        return filteredPartitions;
+    }
+
 
     /**
      * Filters partitions based on a given index name and query clause.
@@ -300,37 +355,37 @@ export class table<T extends object> implements type_table {
      * @param query_clause Object defining the query operations and values.
      * @returns Filtered array of Partition objects.
      */
-    index_partition_filter(partitions: type_partition[], index_name: string, query_clause: type_query_clause): type_partition[] {
+    partition_filter(partitions: type_partition[], index_name: string, query_clause: type_query_clause): type_partition[] {
         let filteredPartitions = partitions;
 
         for (const [query_function, query_value] of Object.entries(query_clause)) {
             switch (query_function) {
                 case '$eq':
-                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] === query_value);
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_metadata[index_name] === query_value);
                     break;
                 case '$ne':
-                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] !== query_value);
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_metadata[index_name] !== query_value);
                     break;
                 case '$gt':
-                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] > query_value);
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_metadata[index_name] > query_value);
                     break;
                 case '$gte':
-                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] >= query_value);
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_metadata[index_name] >= query_value);
                     break;
                 case '$lt':
-                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] < query_value);
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_metadata[index_name] < query_value);
                     break;
                 case '$lte':
-                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] <= query_value);
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_metadata[index_name] <= query_value);
                     break;
                 case '$between':
-                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_indices[index_name] >= query_value[0] && partition.partition_indices[index_name] <= query_value[1]);
+                    filteredPartitions = filteredPartitions.filter(partition => partition.partition_metadata[index_name] >= query_value[0] && partition.partition_metadata[index_name] <= query_value[1]);
                     break;
                 case '$in':
-                    filteredPartitions = filteredPartitions.filter(partition => query_value.includes(partition.partition_indices[index_name]));
+                    filteredPartitions = filteredPartitions.filter(partition => query_value.includes(partition.partition_metadata[index_name]));
                     break;
                 case '$nin':
-                    filteredPartitions = filteredPartitions.filter(partition => !query_value.includes(partition.partition_indices[index_name]));
+                    filteredPartitions = filteredPartitions.filter(partition => !query_value.includes(partition.partition_metadata[index_name]));
                     break;
                 default:
                     throw new Error(`Unsupported query function: ${query_function}`);
@@ -482,12 +537,23 @@ export class table<T extends object> implements type_table {
             valid_partitions = this.primary_key_partition_filter(valid_partitions, query_clause);
         }
 
-        for (let index_name of this.indices) {
+        for (let partition_name of this.partition_keys) {
+            if (query[partition_name]) {
+                let query_clause = query[partition_name] as type_query_clause;
+                valid_partitions = this.partition_filter(valid_partitions, partition_name, query_clause);
+
+                delete query[partition_name];
+            }
+        }
+
+        for (let index_name of this.index_keys) {
             if (query[index_name]) {
                 let query_clause = query[index_name] as type_query_clause;
-                valid_partitions = this.index_partition_filter(valid_partitions, index_name, query_clause);
+                // console.log('In index filter', { index_name, query_clause, valid_partitions })
+                valid_partitions = this.index_filter(valid_partitions, index_name, query_clause);
+                // console.log('After index filter', { index_name, query_clause, valid_partitions })
 
-                delete query[index_name];
+                // delete query[index_name];
             }
         }
 

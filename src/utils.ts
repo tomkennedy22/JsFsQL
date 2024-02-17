@@ -1,10 +1,10 @@
-import { type_partition_index } from "./types";
+import { type_partition_metadata } from "./types";
 import * as dayjs from 'dayjs'
 
 // Helper function to generate a partition name based on the partition index.
 // It converts the index into a string format suitable for file naming.
-export const partition_name_from_partition_index = (partition_index: type_partition_index): string => {
-    return Object.entries(partition_index)
+export const partition_name_from_partition_metadata = (partition_metadata: type_partition_metadata): string => {
+    return Object.entries(partition_metadata)
         .map(([indexKey, indexValue]) => `${indexKey}_${indexValue}`)
         .join('_') || 'default';
 }
@@ -180,3 +180,30 @@ export const group_by = (list: any[], index_field: string) => {
 
     return group_map;
 }
+
+export const decircularize_object = (obj: any) => {
+    const seenObjects = new WeakSet();
+  
+    function dereferenceCircularRefs(value: any, parentKey: any, parentObject: any) {
+      if (typeof value !== 'object' || value === null) {
+        return value; // Return non-object value directly (primitive or null)
+      }
+  
+      if (seenObjects.has(value)) {
+        // Circular reference detected
+        delete parentObject[parentKey]; // Remove circular reference
+        return '[Circular]'; // Optionally, replace it with a placeholder
+      }
+  
+      seenObjects.add(value);
+  
+      for (const key of Object.keys(value)) {
+        value[key] = dereferenceCircularRefs(value[key], key, value);
+      }
+  
+      return value;
+    }
+  
+    return dereferenceCircularRefs(obj, null, null);
+  }
+  

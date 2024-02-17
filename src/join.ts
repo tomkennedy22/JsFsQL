@@ -1,5 +1,5 @@
 import { type_database, type_loose_query } from "./types";
-import { distinct, get_from_dict, index_by, group_by, nest_children, deep_copy } from "./utils";
+import { distinct, get_from_dict, index_by, group_by, nest_children, deep_copy, decircularize_object } from "./utils";
 
 type table_join_results = {
     data: any[];
@@ -52,7 +52,8 @@ export const highest_parent = (db: type_database, table_names: string[], query_a
     else if (tables_without_parent.length > 1) {
         let tables_without_parent_with_query_addons = tables_without_parent.filter(table_name => query_addons[table_name]);
         if (tables_without_parent_with_query_addons.length === 0) {
-            throw new Error('Multiple tables without parent found, but none have query addons');
+            console.log('Multiple tables without parent found, but none have query addons');
+            return tables_without_parent[0]
         }
         else {
             return tables_without_parent_with_query_addons[0];
@@ -88,6 +89,8 @@ export const join = (
         console.log('join_from_table_results', base_table_name, join_from_table_results, query_addons)
         join_from_table_results = join_for_table(db, base_table_name, all_tables_needed, query_addons, join_tracker);
     }
+
+    // join_from_table_results = decircularize_object(join_from_table_results)
 
     return join_from_table_results;
 }

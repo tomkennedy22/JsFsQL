@@ -22,14 +22,14 @@ export class database implements type_database {
         this.do_compression = do_compression;
     }
 
-    add_table({ table_name, indices, primary_key, proto, delete_key_list }: { table_name: string, indices: string[], primary_key: string, proto?: any, delete_key_list: string[] }): type_table {
+    add_table({ table_name, partition_keys, primary_key, proto, delete_key_list, index_keys }: { table_name: string, partition_keys: string[],primary_key: string, proto?: any, delete_key_list: string[], index_keys?: string[] }): type_table {
 
         if (!table_name) {
             throw new Error('Table name is required');
         }
 
         if (!this.tables.hasOwnProperty(table_name)) {
-            let new_table = new table({ table_name, indices, storage_location: this.storage_location, dbname: this.dbname, primary_key, proto, delete_key_list, do_compression: this.do_compression });
+            let new_table = new table({ table_name, partition_keys, index_keys, storage_location: this.storage_location, dbname: this.dbname, primary_key, proto, delete_key_list, do_compression: this.do_compression });
             this.tables[table_name] = new_table;
             return new_table as type_table;
         }
@@ -63,7 +63,7 @@ export class database implements type_database {
 
     save_database = async () => {
         let tables = Object.values(this.tables);
-        let table_info = tables.map(table => ({ table_name: table.table_name, indices: table.indices, primary_key: table.primary_key }));
+        let table_info = tables.map(table => ({ table_name: table.table_name, partition_keys: table.partition_keys, index_keys: table.index_keys, primary_key: table.primary_key }));
 
         let save_data = {
             dbname: this.dbname,
@@ -97,9 +97,9 @@ export class database implements type_database {
 
             // Collecting promises for each table read operation
             const tableReadPromises = tables.map((table_info: any) => {
-                let { table_name, indices, primary_key, delete_key_list } = table_info;
+                let { table_name, partition_keys, index_keys, primary_key, delete_key_list } = table_info;
                 // Assume add_table returns an instance with a read_from_file method
-                table_info.table_obj = this.add_table({ table_name, indices, primary_key, proto: null, delete_key_list });
+                table_info.table_obj = this.add_table({ table_name, partition_keys, index_keys, primary_key, proto: null, delete_key_list });
                 // Start reading from file and return the promise to be awaited
                 return table_info.table_obj.read_from_file();
             });

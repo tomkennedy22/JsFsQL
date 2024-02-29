@@ -23,17 +23,19 @@ export class partition<T extends object> implements type_partition {
     is_dirty: boolean = true; // Default is_dirty to true to indicate the partition requires saving upon creation.
     write_lock: boolean = false; // Default write_lock to false to indicate the partition is not currently being saved.
     do_compression: boolean;
+    delete_key_list: string[];
 
     last_update_dt: Date;
 
     // Constructor to initialize a new partition with given properties.
-    constructor({ storage_location, partition_indices, primary_key, proto, do_compression, partition_name }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T, do_compression: boolean, partition_name?:string }) {
+    constructor({ storage_location, partition_indices, primary_key, proto, do_compression, partition_name, delete_key_list }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T, do_compression: boolean, partition_name?:string, delete_key_list?: string[]}) {
         this.partition_indices = partition_indices;
         this.primary_key = primary_key;
         this.proto = proto;
         this.data = {}; // Initialize data as an empty object.
         // Generate a partition name from the provided indices and form the storage location path.
         this.partition_name = partition_name || partition_name_from_partition_index(partition_indices);
+        this.delete_key_list = delete_key_list || [];
 
         this.storage_location = storage_location;
         this.json_output_file_path = `${storage_location}/${this.partition_name}.json`; // Storage location is derived from the table folder path and partition name.
@@ -119,6 +121,8 @@ export class partition<T extends object> implements type_partition {
         try {
             this.is_dirty = false;
 
+            this.delete_keys_from_data();
+
             // Serialize the object to a JSON string with pretty-printing
             let data = JSON.stringify({
                 partition_name: this.partition_name,
@@ -126,7 +130,8 @@ export class partition<T extends object> implements type_partition {
                 data: this.data,
                 storage_location: this.storage_location,
                 primary_key: this.primary_key,
-                last_update_dt: this.last_update_dt
+                last_update_dt: this.last_update_dt,
+                delete_key_list: this.delete_key_list
             }, null, 2);
 
             let data_to_write: string | Buffer = '';
@@ -180,7 +185,7 @@ export class partition<T extends object> implements type_partition {
 
             let parsed_data = JSON.parse(data_to_parse);
 
-            let { partition_name, partition_indices, data, storage_location, primary_key, last_update_dt } = parsed_data;
+            let { partition_name, partition_indices, data, storage_location, primary_key, last_update_dt, delete_key_list } = parsed_data;
 
             this.partition_name = partition_name;
             this.partition_indices = partition_indices;
@@ -188,11 +193,24 @@ export class partition<T extends object> implements type_partition {
             this.storage_location = storage_location;
             this.primary_key = primary_key;
             this.last_update_dt = new Date(last_update_dt);
+            this.delete_key_list = delete_key_list || [];
 
             return Promise.resolve();
         }
         catch (error) {
             console.log('Error reading from file', error, output_file_path)
+        }
+    }
+
+    delete_keys_from_data = () => {
+        console.log('delete_keys_from_data', this.delete_key_list, this.partition_name)
+        let delete_key_list = this.delete_key_list || [];
+
+        for (let key in this.data) {
+            for (let delete_key of delete_key_list) {
+                console.log('delete_key', delete_key)
+                delete this.data[key][delete_key];
+            }
         }
     }
 

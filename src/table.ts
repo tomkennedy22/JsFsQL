@@ -52,6 +52,7 @@ export class table<T extends object> implements type_table {
                 storage_location: this.storage_location,
                 table_connections: this.table_connections,
                 do_compression: this.do_compression,
+                delete_key_list: this.delete_key_list
             }
             let data = JSON.stringify(output_data, null, 2);
 
@@ -101,7 +102,7 @@ export class table<T extends object> implements type_table {
             let data = await fs.readFile(this.output_file_path, 'utf-8');
             let parsed_data = JSON.parse(data);
 
-            let { table_name, indices, primary_key, partition_names, storage_location, table_connections, do_compression } = parsed_data;
+            let { table_name, indices, primary_key, partition_names, storage_location, table_connections, do_compression, delete_key_list } = parsed_data;
 
             this.table_name = table_name;
             this.indices = indices;
@@ -109,12 +110,13 @@ export class table<T extends object> implements type_table {
             this.storage_location = storage_location;
             this.table_connections = table_connections;
             this.do_compression = do_compression;
+            this.delete_key_list = delete_key_list || [];
 
             // Collecting promises for each partition read operation
             const partitionReadPromises = partition_names.map(async (partition_name: string) => {
                 // let partition_location = `${storage_location}/${partition_name}.json`;
                 let partition_indices = {};
-                let new_partition = new partition({ storage_location, partition_indices, primary_key, proto: this.proto, do_compression: this.do_compression, partition_name });
+                let new_partition = new partition({ storage_location, partition_indices, primary_key, proto: this.proto, do_compression: this.do_compression, partition_name, delete_key_list: this.delete_key_list || [] });
                 await new_partition.read_from_file();
 
                 for (let pk in new_partition.data) {
@@ -168,7 +170,8 @@ export class table<T extends object> implements type_table {
                     partition_indices,
                     primary_key: this.primary_key,
                     proto: this.proto,
-                    do_compression: this.do_compression
+                    do_compression: this.do_compression,
+                    delete_key_list: this.delete_key_list || [],
                 });
             }
 
@@ -206,12 +209,15 @@ export class table<T extends object> implements type_table {
     cleanse_before_alter(data: T[]): T[] {
 
         let new_list = data.map((item) => {
-            let delete_list = this.delete_key_list;
+            let delete_list = this.delete_key_list || [];
             if (!delete_list) {
                 return item;
             }
-            // @ts-ignore
-            delete_list.forEach((delete_key: string) => delete item[delete_key])
+            
+            for (let delete_key of delete_list) {
+                // @ts-ignore
+                delete item[delete_key];
+            }
             return item;
         })
         return new_list;

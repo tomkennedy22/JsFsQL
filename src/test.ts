@@ -4,7 +4,7 @@ import fs from "fs/promises";
 import path from "path";
 import { type_connection_init, type_database, type_loose_query, type_table_init } from "./types";
 import { distinct, get_from_dict, group_by, index_by, nest_children } from "./utils";
-import { highest_parent, join } from "./join";
+import { nested_join } from "./join";
 
 function writeJsonToFile(filePath: string, data: object): void {
     try {
@@ -95,6 +95,7 @@ const test = async () => {
         { table_a_name: 'league_season', table_b_name: 'tier_season', join_key: 'league_season_id', join_type: 'one_to_many' },
         { table_a_name: 'tier_season', table_b_name: 'conference_season', join_key: 'tier_season_id', join_type: 'one_to_many' },
         { table_a_name: 'conference_season', table_b_name: 'division_season', join_key: 'conference_season_id', join_type: 'one_to_many' },
+        { table_a_name: 'league_season', table_b_name: 'division_season', join_key: 'league_season_id', join_type: 'one_to_many' },
         { table_a_name: 'division_season', table_b_name: 'team_season', join_key: 'division_season_id', join_type: 'one_to_many' },
         { table_a_name: 'team', table_b_name: 'team_season', join_key: 'team_id', join_type: 'one_to_many' },
         { table_a_name: 'conference', table_b_name: 'conference_season', join_key: 'conference_id', join_type: 'one_to_many' },
@@ -432,139 +433,162 @@ const test = async () => {
             "division_id": 1,
             "season": 2023,
             "division_season_id": 1,
-            "conference_season_id": 1
+            "conference_season_id": 1,
+            "league_season_id": 1
         },
         {
             "division_id": 2,
             "season": 2023,
             "division_season_id": 2,
-            "conference_season_id": 1
+            "conference_season_id": 1,
+            "league_season_id": 1
         },
         {
             "division_id": 3,
             "season": 2023,
             "division_season_id": 3,
-            "conference_season_id": 1
+            "conference_season_id": 1,
+            "league_season_id": 1
         },
         {
             "division_id": 4,
             "season": 2023,
             "division_season_id": 4,
-            "conference_season_id": 1
+            "conference_season_id": 1,
+            "league_season_id": 1
         },
         {
             "division_id": 5,
             "season": 2023,
             "division_season_id": 5,
-            "conference_season_id": 2
+            "conference_season_id": 2,
+            "league_season_id": 1
         },
         {
             "division_id": 6,
             "season": 2023,
             "division_season_id": 6,
-            "conference_season_id": 2
+            "conference_season_id": 2,
+            "league_season_id": 1
         },
         {
             "division_id": 7,
             "season": 2023,
             "division_season_id": 7,
-            "conference_season_id": 2
+            "conference_season_id": 2,
+            "league_season_id": 1
         },
         {
             "division_id": 8,
             "season": 2023,
             "division_season_id": 8,
-            "conference_season_id": 2
+            "conference_season_id": 2,
+            "league_season_id": 1
         },
         {
             "division_id": 9,
             "season": 2023,
             "division_season_id": 9,
-            "conference_season_id": 3
+            "conference_season_id": 3,
+            "league_season_id": 2
         },
         {
             "division_id": 10,
             "season": 2023,
             "division_season_id": 10,
-            "conference_season_id": 4
+            "conference_season_id": 4,
+            "league_season_id": 2
         },
         {
             "division_id": 15,
             "season": 2023,
             "division_season_id": 11,
-            "conference_season_id": 5
+            "conference_season_id": 5,
+            "league_season_id": 2
         },
         {
             "division_id": 14,
             "season": 2023,
             "division_season_id": 12,
-            "conference_season_id": 6
+            "conference_season_id": 6,
+            "league_season_id": 2
         },
         {
             "division_id": 16,
             "season": 2023,
             "division_season_id": 13,
-            "conference_season_id": 7
+            "conference_season_id": 7,
+            "league_season_id": 2
         },
         {
             "division_id": 12,
             "season": 2023,
             "division_season_id": 14,
-            "conference_season_id": 8
+            "conference_season_id": 8,
+            "league_season_id": 2
         },
         {
             "division_id": 17,
             "season": 2023,
             "division_season_id": 15,
-            "conference_season_id": 9
+            "conference_season_id": 9,
+            "league_season_id": 2
         },
         {
             "division_id": 11,
             "season": 2023,
             "division_season_id": 16,
-            "conference_season_id": 10
+            "conference_season_id": 10,
+            "league_season_id": 2
         },
         {
             "division_id": 13,
             "season": 2023,
             "division_season_id": 17,
-            "conference_season_id": 11
+            "conference_season_id": 11,
+            "league_season_id": 2
         },
         {
             "division_id": 18,
             "season": 2023,
             "division_season_id": 18,
-            "conference_season_id": 12
+            "conference_season_id": 12,
+            "league_season_id": 2
         },
         {
             "division_id": 19,
             "season": 2023,
             "division_season_id": 19,
-            "conference_season_id": 13
+            "conference_season_id": 13,
+            "league_season_id": 2
         },
         {
             "division_id": 21,
             "season": 2023,
             "division_season_id": 20,
-            "conference_season_id": 14
+            "conference_season_id": 14,
+            "league_season_id": 2
         },
         {
             "division_id": 22,
             "season": 2023,
             "division_season_id": 21,
-            "conference_season_id": 15
+            "conference_season_id": 15,
+            "league_season_id": 2
         },
         {
             "division_id": 20,
             "season": 2023,
             "division_season_id": 22,
-            "conference_season_id": 16
+            "conference_season_id": 16,
+            "league_season_id": 2
         },
         {
             "division_id": 23,
             "season": 2023,
             "division_season_id": 23,
-            "conference_season_id": 17
+            "conference_season_id": 17,
+            "league_season_id": 2
         }
     ]
 
@@ -779,36 +803,35 @@ const test = async () => {
         'league_season': { league_id, season },
     }
 
-    let {results: result} = join(
-        db,
-        'league_season',
-        ['league', 'tier_season', 'tier', 'conference_season', 'conference', 'division_season', 'division'],
-        {
-            'league_season': { league_id, season },
-        }
-    );
 
-    let {results: result_2} = join(
-        db,
-        'division_season',
-        ['league_season', 'league', 'tier_season', 'tier', 'conference_season', 'conference', 'division_season', 'division'],
-        // {
-        //     'league_season': { league_id, season },
-        // },
-        query_addons
-    );
+    let new_join_results: any[] = nested_join(db,
+        {
+            league_season: {
+                filter: { league_id },
+                children: {
+                    league: {},
+                    division_season: {
+                        name: 'division_seasons',
+                        sort: {
+                            'conference_season_id': -1,
+                            'division.division_name': -1
+                        },
+                        children: {
+                            team_season: {
+                                name: 'team_seasons'
+                            },
+                            division: {}
+                        }
+                    }
+                },
+                find_fn: 'findOne',
+            }
+        }
+    )
 
     // let result = join(db, 'league_season', join_critera);
     // console.log('result', result)
-    writeJsonToFile('join_test.json', result);
-
-    // console.log('result_2', result_2)
-    writeJsonToFile('join_test_2.json', result_2);
-
-    // await db.save_database()
-
-    let hp = highest_parent(db, ['league_season', 'tier_season', 'conference_season', 'division_season', 'team_season'], {})
-    console.log('hp', hp)
+    writeJsonToFile('new_join_results.json', new_join_results);
 }
 
 test();

@@ -180,3 +180,10 @@ export const group_by = (list: any[], index_field: string) => {
 
     return group_map;
 }
+
+export const first_element = (list: any[]): any => {
+    if (list.length === 0) {
+        return null;
+    }
+    return list[0];
+}

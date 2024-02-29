@@ -1,5 +1,5 @@
 import { type_database, type_loose_query } from "./types";
-import { distinct, get_from_dict, index_by, group_by, nest_children, deep_copy } from "./utils";
+import { distinct, get_from_dict, index_by, group_by, nest_children, deep_copy, first_element } from "./utils";
 
 type table_join_results = {
     data: any[];
@@ -12,179 +12,96 @@ type join_results = {
     tables: { [key: string]: table_join_results };
 }
 
-const most_precise_query_table = (query_addons: type_loose_query): string | null => {
-    let maxKey = null;
-    let maxCount = 0;
 
-    for (const key in query_addons) {
-        const count = Object.keys(query_addons[key]).length;
-        if (count > maxCount) {
-            maxCount = count;
-            maxKey = key;
-        }
-    }
-
-    return maxKey;
+type type_join_criteria = {
+    filter?: type_loose_query;
+    sort?: any;
+    find_fn?: 'find' | 'findOne';
+    name?: string;
+    filter_up?: boolean;
+    children?: { [key: string]: type_join_criteria };
 }
 
-export const highest_parent = (db: type_database, table_names: string[], query_addons: { [key: string]: type_loose_query }): string => {
-    let tables_without_parent_set = new Set(table_names);
+export const nested_join = (db: type_database, join_criteria: { [key: string]: type_join_criteria }): any[] => {
+    return recurse_nested_join(db, null, [], join_criteria);
+}
 
-    for (let table_name of table_names) {
+
+export const recurse_nested_join = (db: type_database, parent_name: string | null, parent_array: any[], join_criteria_dict: { [key: string]: type_join_criteria }): any[] => {
+    for (let table_name in join_criteria_dict) {
         let table = db.tables[table_name];
+
         let table_connections = table.table_connections;
 
-        for (let connected_table_name in table_connections) {
-            let connection = table_connections[connected_table_name];
-            if (connection.join_type === 'many_to_one' && table_names.includes(connected_table_name)) {
-                tables_without_parent_set.delete(table_name);
+        let criteria = join_criteria_dict[table_name] || {};
+        let find_fn: 'find' | 'findOne' = criteria.find_fn || 'find';
+        let filter = criteria.filter || {};
+        let name = criteria.name || table_name;
+        let sort = criteria.sort || {};
+
+        console.log('recurse_nested_join', { parent_name, join_criteria_dict, table_name, table_connections: table.table_connections, criteria, parent_array })
+        let parent_connection: any;
+        let parent_join_key: string | null = null;
+        if (parent_name) {
+            parent_connection = table.table_connections[parent_name];
+            parent_join_key = parent_connection.join_key;
+            console.log('parent_connection', { parent_connection, parent_join_key, parent_array })
+            if (parent_join_key) {
+                let parent_values = distinct(parent_array.map(row => get_from_dict(row, parent_join_key as string))).filter(value => value);
+
+                if (parent_values.length > 0) {
+                    filter[parent_join_key] = { $in: parent_values };
+                }
             }
         }
-    }
 
-    let tables_without_parent = [...tables_without_parent_set];
-    if (tables_without_parent.length === 0) {
-        if (Object.keys(query_addons).length > 0) {
-            console.log('No tables without parent found, but query addons are present');
-            return most_precise_query_table(query_addons) || table_names[0];
+        let data = table.find(filter);
+        let data_by_join_key;
+
+        if (parent_name && parent_connection && parent_join_key) {
+            if (parent_connection.join_type === 'one_to_many' || parent_connection.join_type === 'one_to_one') {
+                data_by_join_key = index_by(data, parent_join_key);
+            }
+            else if (parent_connection.join_type === 'many_to_one') {
+                data_by_join_key = group_by(data, parent_join_key);
+
+            }
         }
-    }
-    else if (tables_without_parent.length > 1) {
-        let tables_without_parent_with_query_addons = tables_without_parent.filter(table_name => query_addons[table_name]);
-        if (tables_without_parent_with_query_addons.length === 0) {
-            console.log('Multiple tables without parent found, but none have query addons');
-            
-            return tables_without_parent[0]
+
+
+        if (criteria.children) {
+            recurse_nested_join(db, table_name, data, criteria.children);
+        }
+
+        if (parent_name && parent_connection && parent_join_key && parent_connection.join_type === 'many_to_one' && criteria.sort) {
+            for (let key in data_by_join_key) {
+                data_by_join_key[key] = data_by_join_key[key].sort((a: any, b: any) => {
+                    for (let sort_key in criteria.sort) {
+                        let sort_val = criteria.sort[sort_key];
+                        let val_a = get_from_dict(a, sort_key);
+                        let val_b = get_from_dict(b, sort_key);
+                        if (val_a < val_b) {
+                            return sort_val;
+                        }
+                        else if (val_a > val_b) {
+                            return sort_val * -1;
+                        }
+                    }
+                    return 0;
+                });
+            }
+        }
+
+        if (parent_name && parent_connection && parent_array && parent_join_key) {
+            parent_array = nest_children(parent_array, data_by_join_key, parent_join_key, name);
+            if (criteria.filter_up) {
+                parent_array = parent_array.filter(row => row[name]);
+            }
         }
         else {
-            return tables_without_parent_with_query_addons[0];
+            parent_array = find_fn == 'find' ? data : first_element(data);
         }
     }
-    else {
-        return tables_without_parent[0];
-    }
 
-    return table_names[0]
-}
-
-export const join = (
-    db: type_database,
-    base_table_name: string,
-    include_table_names: string[],
-    query_addons?: { [key: string]: type_loose_query },
-): join_results => {
-
-    let join_tracker: join_results = { results: [], tables: {} };
-    let all_tables_needed = new Set([base_table_name, ...include_table_names]);
-
-    query_addons = query_addons || {};
-    let first_table = highest_parent(db, [...all_tables_needed], query_addons);
-    console.log('join', { first_table, base_table_name, include_table_names, query_addons })
-
-    let join_from_table_results = join_for_table(db, first_table, all_tables_needed, query_addons, join_tracker);
-
-    console.log('join_from_table_results - DONT HAVE INVERT FROM', { base_table_name, base_table_conn: db.tables[base_table_name].table_connections, join_from_table_results, query_addons })
-
-    if (first_table !== base_table_name) {
-        all_tables_needed = new Set([base_table_name, ...include_table_names]);
-        console.log('join_from_table_results', base_table_name, join_from_table_results, query_addons)
-        join_from_table_results = join_for_table(db, base_table_name, all_tables_needed, query_addons, join_tracker);
-    }
-
-    return join_from_table_results;
-}
-
-const get_query_addons = (query_addons: { [key: string]: type_loose_query } | undefined, table_name: string) => {
-    let query_addon = deep_copy(query_addons ? query_addons[table_name] || {} : {});
-    return query_addon;
-}
-
-const add_to_query_addons = (query_addons: { [key: string]: type_loose_query } | undefined, table_name: string, query_addon: type_loose_query) => {
-
-    if (!query_addons) {
-        query_addons = {};
-    }
-
-    if (!query_addons[table_name]) {
-        query_addons[table_name] = {};
-    }
-
-    for (let key in query_addon) {
-        if (!query_addons[table_name][key]) {
-            query_addons[table_name][key] = query_addon[key];
-        }
-    }
-}
-
-const join_for_table = (
-    db: type_database,
-    table_name: string,
-    all_tables_needed: Set<string>,
-    query_addons: { [key: string]: type_loose_query, },
-    join_tracker: join_results
-): join_results => {
-    let table = db.tables[table_name];
-    let table_connections = table.table_connections;
-    let keys_to_index_by = table.get_foreign_keys_and_primary_keys();
-
-    all_tables_needed.delete(table_name);
-    let data: any[] = []
-    if (join_tracker.tables[table_name] && false) {
-        data = join_tracker.tables[table_name].data;
-    }
-    else {
-        data = table.find(get_query_addons(query_addons, table_name)) || [];
-    }
-
-    join_tracker.tables[table_name] = {
-        data,
-        indexes: {},
-        groups: {}
-    }
-
-    for (let key of keys_to_index_by) {
-        join_tracker.tables[table_name].indexes[key] = index_by(data, key);
-        join_tracker.tables[table_name].groups[key] = group_by(data, key);
-    }
-
-    // console.log('join_for_table', { join_tracker, table_name, all_tables_needed, query_addons, table_connections })
-
-    for (let connected_table_name in table_connections) {
-        if (!all_tables_needed.has(connected_table_name)) {
-            continue;
-        }
-
-        // console.log('Looping connections of table', table_name, 'connected_table_name', connected_table_name, { query_addons })
-
-        let connection = table_connections[connected_table_name];
-        let connected_table = db.tables[connected_table_name];
-
-        let join_key = connection.join_key;
-        let parent_join_ids = distinct(data.map(row => get_from_dict(row, join_key)));
-
-        let child_query = get_query_addons(query_addons, connected_table_name)
-        let parent_id_query = { [join_key]: { $in: parent_join_ids } };
-
-        let new_child_query = { ...child_query, ...parent_id_query };
-        add_to_query_addons(query_addons, connected_table_name, new_child_query);
-
-        join_tracker = join_for_table(db, connected_table_name, all_tables_needed, query_addons, join_tracker)
-        let child_data_by_key: { [key: string]: any } = {};
-
-        let store_key = '';
-
-        if (connection.join_type === 'many_to_one') {
-            child_data_by_key = join_tracker.tables[connected_table_name].indexes[join_key];
-            store_key = connected_table_name;
-        }
-        else if (connection.join_type === 'one_to_many' || connection.join_type === 'one_to_one') {
-            child_data_by_key = join_tracker.tables[connected_table_name].groups[join_key];
-            store_key = `${connected_table_name}s`;
-        }
-
-        data = nest_children(data, child_data_by_key, join_key, store_key);
-    }
-
-    join_tracker.results = join_tracker.tables[table_name].data;
-    return join_tracker;
+    return parent_array;
 }

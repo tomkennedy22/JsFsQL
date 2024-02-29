@@ -779,6 +779,92 @@ const test = async () => {
         }
     ]
 
+    let teams = [
+        {
+            team_id: 1,
+            team_name: "Tommy Football Team",
+        },
+        {
+            team_id: 2,
+            team_name: "Emmitt Football Team",
+        },
+        {
+            team_id: 3,
+            team_name: "Eloise Coast Team",
+        },
+        {
+            team_id: 4,
+            team_name: "Chicago Athletic Team",
+        },
+        {
+            team_id: 5,
+            team_name: "Big 69 Team",
+        },
+        {
+            team_id: 6,
+            team_name: "Big 420 Team",
+        },
+        {
+            team_id: 7,
+            team_name: "Mideast Team",
+        },
+        {
+            team_id: 8,
+            team_name: "Mountain Wheast Team",
+        }
+    ]
+
+    let team_seasons = [
+        {
+            team_id: 1,
+            season: 2023,
+            team_season_id: 1,
+            division_season_id: 1,
+        },
+        {
+            team_id: 2,
+            season: 2023,
+            team_season_id: 2,
+            division_season_id: 1,
+        },
+        {
+            team_id: 3,
+            season: 2023,
+            team_season_id: 3,
+            division_season_id: 1,
+        },
+        {
+            team_id: 4,
+            season: 2023,
+            team_season_id: 4,
+            division_season_id: 1,
+        },
+        {
+            team_id: 5,
+            season: 2023,
+            team_season_id: 5,
+            division_season_id: 2,
+        },
+        {
+            team_id: 6,
+            season: 2023,
+            team_season_id: 6,
+            division_season_id: 2
+        },
+        {
+            team_id: 7,
+            season: 2023,
+            team_season_id: 7,
+            division_season_id: 2
+        },
+        {
+            team_id: 8,
+            season: 2023,
+            team_season_id: 8,
+            division_season_id: 2
+        }
+    ]
+
     db.tables.league.insert(leagues);
     db.tables.league_season.insert(league_seasons);
 
@@ -791,25 +877,19 @@ const test = async () => {
     db.tables.division.insert(divisions);
     db.tables.division_season.insert(division_seasons);
 
-    // db.tables.team.insert(teams);
-    // db.tables.team_season.insert(team_seasons);
-
-    // console.log('db', db)
+    db.tables.team.insert(teams);
+    db.tables.team_season.insert(team_seasons);
 
 
     let league_id = 1;
     let season = 2023;
-    let query_addons = {
-        'league_season': { league_id, season },
-    }
-
 
     let new_join_results: any[] = nested_join(db,
         {
             league_season: {
-                filter: { league_id },
+                filter: { league_id, season },
                 children: {
-                    league: {},
+                    // league: {},
                     division_season: {
                         name: 'division_seasons',
                         sort: {
@@ -818,19 +898,21 @@ const test = async () => {
                         },
                         children: {
                             team_season: {
-                                name: 'team_seasons'
+                                name: 'team_seasons',
+                                children: {
+                                    team: {}
+                                },
+                                filter_up: true
                             },
                             division: {}
                         }
                     }
                 },
-                find_fn: 'findOne',
+                // find_fn: 'findOne',
             }
         }
     )
 
-    // let result = join(db, 'league_season', join_critera);
-    // console.log('result', result)
     writeJsonToFile('new_join_results.json', new_join_results);
 }
 

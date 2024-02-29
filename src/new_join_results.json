@@ -1,135 +1,123 @@
-{
-  "league_season_id": 1,
-  "league_id": 1,
-  "season": 2023,
-  "league": {
+[
+  {
+    "league_season_id": 1,
     "league_id": 1,
-    "league_name": "Tommy Football League",
-    "league_abbreviation": "TFL",
-    "league_color_secondary_hex": "FFFFFF",
-    "league_color_primary_hex": "000000",
-    "league_level": 1
-  },
-  "division_seasons": [
-    {
-      "division_id": 1,
-      "season": 2023,
-      "division_season_id": 1,
-      "conference_season_id": 1,
-      "league_season_id": 1,
-      "division": {
-        "conference_id": 1,
-        "division_name": "East",
-        "division_abbreviation": "E",
+    "season": 2023,
+    "division_seasons": [
+      {
         "division_id": 1,
-        "tier_id": 1,
-        "league_id": 1
-      }
-    },
-    {
-      "division_id": 3,
-      "season": 2023,
-      "division_season_id": 3,
-      "conference_season_id": 1,
-      "league_season_id": 1,
-      "division": {
-        "conference_id": 1,
-        "division_name": "North",
-        "division_abbreviation": "N",
-        "division_id": 3,
-        "tier_id": 1,
-        "league_id": 1
-      }
-    },
-    {
-      "division_id": 4,
-      "season": 2023,
-      "division_season_id": 4,
-      "conference_season_id": 1,
-      "league_season_id": 1,
-      "division": {
-        "conference_id": 1,
-        "division_name": "South",
-        "division_abbreviation": "S",
-        "division_id": 4,
-        "tier_id": 1,
-        "league_id": 1
-      }
-    },
-    {
-      "division_id": 2,
-      "season": 2023,
-      "division_season_id": 2,
-      "conference_season_id": 1,
-      "league_season_id": 1,
-      "division": {
-        "conference_id": 1,
-        "division_name": "West",
-        "division_abbreviation": "W",
+        "season": 2023,
+        "division_season_id": 1,
+        "conference_season_id": 1,
+        "league_season_id": 1,
+        "team_seasons": [
+          {
+            "team_id": 1,
+            "season": 2023,
+            "team_season_id": 1,
+            "division_season_id": 1,
+            "team": {
+              "team_id": 1,
+              "team_name": "Tommy Football Team"
+            }
+          },
+          {
+            "team_id": 2,
+            "season": 2023,
+            "team_season_id": 2,
+            "division_season_id": 1,
+            "team": {
+              "team_id": 2,
+              "team_name": "Emmitt Football Team"
+            }
+          },
+          {
+            "team_id": 3,
+            "season": 2023,
+            "team_season_id": 3,
+            "division_season_id": 1,
+            "team": {
+              "team_id": 3,
+              "team_name": "Eloise Coast Team"
+            }
+          },
+          {
+            "team_id": 4,
+            "season": 2023,
+            "team_season_id": 4,
+            "division_season_id": 1,
+            "team": {
+              "team_id": 4,
+              "team_name": "Chicago Athletic Team"
+            }
+          }
+        ],
+        "division": {
+          "conference_id": 1,
+          "division_name": "East",
+          "division_abbreviation": "E",
+          "division_id": 1,
+          "tier_id": 1,
+          "league_id": 1
+        }
+      },
+      {
         "division_id": 2,
-        "tier_id": 1,
-        "league_id": 1
+        "season": 2023,
+        "division_season_id": 2,
+        "conference_season_id": 1,
+        "league_season_id": 1,
+        "team_seasons": [
+          {
+            "team_id": 5,
+            "season": 2023,
+            "team_season_id": 5,
+            "division_season_id": 2,
+            "team": {
+              "team_id": 5,
+              "team_name": "Big 69 Team"
+            }
+          },
+          {
+            "team_id": 6,
+            "season": 2023,
+            "team_season_id": 6,
+            "division_season_id": 2,
+            "team": {
+              "team_id": 6,
+              "team_name": "Big 420 Team"
+            }
+          },
+          {
+            "team_id": 7,
+            "season": 2023,
+            "team_season_id": 7,
+            "division_season_id": 2,
+            "team": {
+              "team_id": 7,
+              "team_name": "Mideast Team"
+            }
+          },
+          {
+            "team_id": 8,
+            "season": 2023,
+            "team_season_id": 8,
+            "division_season_id": 2,
+            "team": {
+              "team_id": 8,
+              "team_name": "Mountain Wheast Team"
+            }
+          }
+        ],
+        "division": {
+          "conference_id": 1,
+          "division_name": "West",
+          "division_abbreviation": "W",
+          "division_id": 2,
+          "tier_id": 1,
+          "league_id": 1
+        }
       }
-    },
-    {
-      "division_id": 5,
-      "season": 2023,
-      "division_season_id": 5,
-      "conference_season_id": 2,
-      "league_season_id": 1,
-      "division": {
-        "conference_id": 2,
-        "division_name": "East",
-        "division_abbreviation": "E",
-        "division_id": 5,
-        "tier_id": 1,
-        "league_id": 1
-      }
-    },
-    {
-      "division_id": 7,
-      "season": 2023,
-      "division_season_id": 7,
-      "conference_season_id": 2,
-      "league_season_id": 1,
-      "division": {
-        "conference_id": 2,
-        "division_name": "North",
-        "division_abbreviation": "N",
-        "division_id": 7,
-        "tier_id": 1,
-        "league_id": 1
-      }
-    },
-    {
-      "division_id": 8,
-      "season": 2023,
-      "division_season_id": 8,
-      "conference_season_id": 2,
-      "league_season_id": 1,
-      "division": {
-        "conference_id": 2,
-        "division_name": "South",
-        "division_abbreviation": "S",
-        "division_id": 8,
-        "tier_id": 1,
-        "league_id": 1
-      }
-    },
-    {
-      "division_id": 6,
-      "season": 2023,
-      "division_season_id": 6,
-      "conference_season_id": 2,
-      "league_season_id": 1,
-      "division": {
-        "conference_id": 2,
-        "division_name": "West",
-        "division_abbreviation": "W",
-        "division_id": 6,
-        "tier_id": 1,
-        "league_id": 1
-      }
-    }
-  ]
-}
+    ]
+  }
+]

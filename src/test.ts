@@ -3,7 +3,7 @@ import { results } from "./results";
 import fs from "fs/promises";
 import path from "path";
 import { type_connection_init, type_database, type_loose_query, type_table_init } from "./types";
-import { distinct, get_from_dict, group_by, index_by, nest_children } from "./utils";
+import { distinct, get_from_dict, group_by, index_by, nest_children, yield_nested_children } from "./utils";
 import { nested_join } from "./join";
 
 function writeJsonToFile(filePath: string, data: object): void {
@@ -914,6 +914,30 @@ const test = async () => {
     )
 
     writeJsonToFile('new_join_results.json', new_join_results);
+
+
+    let test_yield_nested_children_obj = {
+        a: {
+            b: {
+                c: {
+                    phase: { name: 'hi' }
+                },
+                d: {
+                    phase: { name: 'hello' }
+                }
+            }
+        },
+        phase: { name: 'bye' },
+        phases: [
+            { name: 'one' },
+            { name: 'two' },
+            { name: 'three' }
+        ]
+    }
+
+    let test_yield_nested_children = yield_nested_children(test_yield_nested_children_obj, ['phase', 'phases']);
+
+    console.log('test_yield_nested_children', { test_yield_nested_children_obj, test_yield_nested_children })
 }
 
 test();

@@ -60,7 +60,7 @@ export const recurse_nested_join = (db: type_database, parent_name: string | nul
         }
 
         if (parent_name && parent_connection && parent_join_key) {
-            if (parent_connection.join_type === 'one_to_many' || parent_connection.join_type === 'one_to_one') {
+            if (parent_connection.join_type === 'one_to_many' || parent_connection.join_type === 'one_to_one' || find_fn == 'findOne') {
                 data_by_join_key = index_by(data, parent_join_key);
             }
             else if (parent_connection.join_type === 'many_to_one') {
@@ -90,9 +90,10 @@ export const recurse_nested_join = (db: type_database, parent_name: string | nul
 
         if (parent_name && parent_connection && parent_array && parent_join_key) {
             parent_array = nest_children(parent_array, data_by_join_key, parent_join_key, name);
-            if (criteria.filter_up) {
-                parent_array = parent_array.filter(row => row[name] != undefined);
-            }
+            // if (criteria.filter_up) {
+            //     parent_array = parent_array.filter(row => row[name] != undefined);
+            // }
+            parent_array = parent_array.filter(row => row[name] != undefined);
         }
         else {
             parent_array = find_fn == 'find' ? data : first_element(data);

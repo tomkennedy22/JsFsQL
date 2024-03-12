@@ -188,22 +188,26 @@ export const first_element = (list: any[]): any => {
     return list[0];
 }
 
-export const yield_nested_children = (parent_object: any, search_key: string | string[], found_children: any[] = []): any[] => {
+export const yield_nested_children = (parent_objects: any[] | any, search_key: string | string[], found_children: any[] = []): any[] => {
+    let parents = Array.isArray(parent_objects) ? parent_objects : [parent_objects];
+    parents = parents.filter(parent => parent !== null && typeof parent === 'object');
 
     let search_key_list = Array.isArray(search_key) ? search_key : [search_key];
 
-    for (let search_key_name of search_key_list) {
-        if (parent_object[search_key_name]) {
-            if (Array.isArray(parent_object[search_key_name])) {
-                found_children.push(...parent_object[search_key_name]);
-            } else {
-                found_children.push(parent_object[search_key_name]);
+    for (let parent_object of parents) {
+        for (let search_key_name of search_key_list) {
+            if (parent_object[search_key_name]) {
+                if (Array.isArray(parent_object[search_key_name])) {
+                    found_children.push(...parent_object[search_key_name]);
+                } else {
+                    found_children.push(parent_object[search_key_name]);
+                }
             }
-        }
 
-        for (let key in parent_object) {
-            if (typeof parent_object[key] === 'object') {
-                yield_nested_children(parent_object[key], search_key_name, found_children);
+            for (let key in parent_object) {
+                if (parent_object.hasOwnProperty(key) && typeof parent_object[key] === 'object') {
+                    yield_nested_children(parent_object[key], search_key_name, found_children);
+                }
             }
         }
     }

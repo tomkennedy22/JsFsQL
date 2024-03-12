@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { type_partition, type_partition_index } from "./types";
-import { deep_copy, get_from_dict, partition_name_from_partition_index, set_to_dict } from "./utils";
+import { deep_copy, get_from_dict, partition_name_from_partition_index } from "./utils";
 import zlib from 'zlib';
 import util from 'util';
 
@@ -28,7 +28,7 @@ export class partition<T extends object> implements type_partition {
     last_update_dt: Date;
 
     // Constructor to initialize a new partition with given properties.
-    constructor({ storage_location, partition_indices, primary_key, proto, do_compression, partition_name, delete_key_list }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T, do_compression: boolean, partition_name?:string, delete_key_list?: string[]}) {
+    constructor({ storage_location, partition_indices, primary_key, proto, do_compression, partition_name, delete_key_list }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T, do_compression: boolean, partition_name?: string, delete_key_list?: string[] }) {
         this.partition_indices = partition_indices;
         this.primary_key = primary_key;
         this.proto = proto;
@@ -70,7 +70,7 @@ export class partition<T extends object> implements type_partition {
             else if (this.data.hasOwnProperty(rowPk)) {
                 throw new Error(`Duplicate primary key value: ${rowPk} for field ${this.primary_key} in partition ${this.partition_name}`);
             }
-            set_to_dict(this.data, rowPk, row);
+            this.data[rowPk] = row; // Insert the row into the dataset using the primary key as the index
 
             // Mark the dataset as 'dirty' to indicate that the state has changed   
             this.is_dirty = true;
@@ -92,10 +92,10 @@ export class partition<T extends object> implements type_partition {
             for (const field of fields_to_drop) {
                 delete copied_row[field];
             }
-            set_to_dict(this.data, rowPk, copied_row);
+            this.data[rowPk] = copied_row;
         }
         else {
-            set_to_dict(this.data, rowPk, row);
+            this.data[rowPk] = row;
         }
 
         // Update the row and mark partition as dirty
@@ -203,12 +203,10 @@ export class partition<T extends object> implements type_partition {
     }
 
     delete_keys_from_data = () => {
-        console.log('delete_keys_from_data', this.delete_key_list, this.partition_name)
         let delete_key_list = this.delete_key_list || [];
 
         for (let key in this.data) {
             for (let delete_key of delete_key_list) {
-                console.log('delete_key', delete_key)
                 delete this.data[key][delete_key];
             }
         }

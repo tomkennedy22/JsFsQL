@@ -916,24 +916,32 @@ const test = async () => {
     writeJsonToFile('new_join_results.json', new_join_results);
 
 
-    let test_yield_nested_children_obj = {
-        a: {
-            b: {
-                c: {
-                    phase: { name: 'hi' }
-                },
-                d: {
-                    phase: { name: 'hello' }
+    let test_yield_nested_children_obj = [
+        {
+            a: {
+                b: {
+                    c: {
+                        phase: { name: 'hi' }
+                    },
+                    d: {
+                        phase: { name: 'hello' }
+                    }
                 }
-            }
+            },
+            phase: { name: 'bye' },
+            phases: [
+                { name: 'one' },
+                { name: 'two' },
+                { name: 'three' }
+            ]
         },
-        phase: { name: 'bye' },
-        phases: [
-            { name: 'one' },
-            { name: 'two' },
-            { name: 'three' }
-        ]
-    }
+        {
+            z: {
+                phase: { name: 'hi inside z' }
+            },
+            q: null
+        }
+    ]
 
     let test_yield_nested_children = yield_nested_children(test_yield_nested_children_obj, ['phase', 'phases']);
 

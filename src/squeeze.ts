@@ -77,6 +77,8 @@ export const compress_partition = async (partition: type_partition): Promise<Buf
     partition.data = squeezed_data;
     let data_string: Buffer = await gzip(JSON.stringify(partition));
 
+    console.log('compress_partition', { partition, squeezed_data, data_string })
+
     return data_string;
 }
 
@@ -91,14 +93,15 @@ export const uncompress_partition = async (compressed_data: Buffer): Promise<typ
     let primary_key = decompressed_data.primary_key;
     for (let row of unsqueezed_data_list) {
         let key = row[primary_key];
-        // @ts-ignore
-        data_obj[key] = row;
+        set_to_dict(data_obj, key, row);
     }
 
     const original_partition = {
         ...decompressed_data,
-        data: unsqueezed_data_list
+        data: data_obj
     };
+
+    console.log('original_partition', { original_partition, unsqueezed_data_list, decompressed_data });
 
     return original_partition;
 };

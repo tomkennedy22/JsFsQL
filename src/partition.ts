@@ -162,7 +162,7 @@ export class partition<T extends object> implements type_partition {
             let data_from_file = await fs.readFile(output_file_path);
             let data_to_parse;
 
-            let parsed_data, partition_name, partition_indices, data, storage_location, primary_key, last_update_dt, delete_key_list;
+            let parsed_data;
 
             if (this.do_compression) {
                 parsed_data = await uncompress_partition(data_from_file);

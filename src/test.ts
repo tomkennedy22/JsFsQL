@@ -89,6 +89,12 @@ const test = async () => {
             primary_key: "conference_season_id",
             indices: ['season'],
             delete_key_list: [],
+        },
+        {
+            table_name: "city",
+            primary_key: "city_state",
+            indices: ["state_abbreviation"],
+            delete_key_list: [],
         }
     ]
 
@@ -114,43 +120,50 @@ const test = async () => {
     })
 
 
-    let input_file_path = path.resolve(__dirname, `team_season_id_-1.json`);
-    let input_file_data = await fs.readFile(input_file_path, 'utf8');
-    let input_file_json = JSON.parse(input_file_data);
+    // let input_file_path = path.resolve(__dirname, `city_master.json5`);
+    // let input_file_data = await fs.readFile(input_file_path, 'utf8');
+    // let input_file_json = JSON.parse(input_file_data);
 
-    let data: { [key: string]: any }[] = Object.values(input_file_json.data);
+    // let data: { [key: string]: any }[] = input_file_json;
 
-    let squeezed_data = squeeze_list_of_dicts(data);
+    // db.tables.city.insert(data);
 
-    console.log('squeezeed_data', squeezed_data);
-    console.log('squeezeed_data stringify', JSON.stringify(squeezed_data));
+    // await db.save_database()
 
-    let unsqueezeed_data = unsqueeze_list_of_dicts({ key_list: squeezed_data.key_list, squeezed_data: squeezed_data.squeezed_data, all_values_list: squeezed_data.all_values_list });
+    let city_queried = db.tables.city.find({ state_abbreviation: 'CA' });
+    console.log('city_queried', city_queried);
 
-    console.log('unsqueezeed_data', unsqueezeed_data);
+    // let squeezed_data = squeeze_list_of_dicts(data);
 
-    let output_file_path = path.resolve(__dirname, `test_squeezed_zipped.json`);
-    let compressed_data = await gzip(JSON.stringify(squeezed_data));
-    const dirname = path.dirname(output_file_path);
-    await fs.mkdir(dirname, { recursive: true });
+    // console.log('squeezeed_data', squeezed_data);
+    // console.log('squeezeed_data stringify', JSON.stringify(squeezed_data));
 
-    // Write to a temporary file first
-    let tempFilePath = output_file_path + '.tmp';
-    await fs.writeFile(tempFilePath, compressed_data);
+    // let unsqueezeed_data = unsqueeze_list_of_dicts({ key_list: squeezed_data.key_list, squeezed_data: squeezed_data.squeezed_data, all_values_list: squeezed_data.all_values_list });
 
-    // Rename the temporary file to the actual file name (atomic operation)
-    await fs.rename(tempFilePath, output_file_path);
+    // console.log('unsqueezeed_data', unsqueezeed_data);
 
-    output_file_path = path.resolve(__dirname, `test_unsqueezed_zipped.json`);
-    let uncompressed_data = await gzip(JSON.stringify(data));
-    await fs.mkdir(dirname, { recursive: true });
+    // let output_file_path = path.resolve(__dirname, `test_squeezed_zipped.json`);
+    // let compressed_data = await gzip(JSON.stringify(squeezed_data));
+    // const dirname = path.dirname(output_file_path);
+    // await fs.mkdir(dirname, { recursive: true });
 
-    // Write to a temporary file first
-    tempFilePath = output_file_path + '.tmp';
-    await fs.writeFile(tempFilePath, uncompressed_data);
+    // // Write to a temporary file first
+    // let tempFilePath = output_file_path + '.tmp';
+    // await fs.writeFile(tempFilePath, compressed_data);
 
-    // Rename the temporary file to the actual file name (atomic operation)
-    await fs.rename(tempFilePath, output_file_path);
+    // // Rename the temporary file to the actual file name (atomic operation)
+    // await fs.rename(tempFilePath, output_file_path);
+
+    // output_file_path = path.resolve(__dirname, `test_unsqueezed_zipped.json`);
+    // let uncompressed_data = await gzip(JSON.stringify(data));
+    // await fs.mkdir(dirname, { recursive: true });
+
+    // // Write to a temporary file first
+    // tempFilePath = output_file_path + '.tmp';
+    // await fs.writeFile(tempFilePath, uncompressed_data);
+
+    // // Rename the temporary file to the actual file name (atomic operation)
+    // await fs.rename(tempFilePath, output_file_path);
 }
 
 test();

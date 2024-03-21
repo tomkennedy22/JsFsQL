@@ -2,11 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { type_partition, type_partition_index } from "./types";
 import { deep_copy, get_from_dict, partition_name_from_partition_index } from "./utils";
-import zlib from 'zlib';
-import util from 'util';
-
-const gunzip = util.promisify(zlib.gunzip);
-const gzip = util.promisify(zlib.gzip);
+import { compress_partition, uncompress_partition } from "./squeeze";
 
 type PartitionData<T extends object> = { [key: string]: T };
 
@@ -27,13 +23,11 @@ export class partition<T extends object> implements type_partition {
 
     last_update_dt: Date;
 
-    // Constructor to initialize a new partition with given properties.
     constructor({ storage_location, partition_indices, primary_key, proto, do_compression, partition_name, delete_key_list }: { storage_location: string, partition_indices: type_partition_index, primary_key: string, proto: new (data: T) => T, do_compression: boolean, partition_name?: string, delete_key_list?: string[] }) {
         this.partition_indices = partition_indices;
         this.primary_key = primary_key;
         this.proto = proto;
-        this.data = {}; // Initialize data as an empty object.
-        // Generate a partition name from the provided indices and form the storage location path.
+        this.data = {};
         this.partition_name = partition_name || partition_name_from_partition_index(partition_indices);
         this.delete_key_list = delete_key_list || [];
 
@@ -123,42 +117,35 @@ export class partition<T extends object> implements type_partition {
 
             this.delete_keys_from_data();
 
-            // Serialize the object to a JSON string with pretty-printing
-            let data = JSON.stringify({
-                partition_name: this.partition_name,
-                partition_indices: this.partition_indices,
-                data: this.data,
-                storage_location: this.storage_location,
-                primary_key: this.primary_key,
-                last_update_dt: this.last_update_dt,
-                delete_key_list: this.delete_key_list
-            }, null, 2);
-
             let data_to_write: string | Buffer = '';
             let output_file_path: string = '';
 
             if (this.do_compression) {
-                data_to_write = await gzip(data);
+                data_to_write = await compress_partition(this);
                 output_file_path = this.txt_output_file_path;
             }
             else {
-                data_to_write = data;
+                data_to_write = JSON.stringify({
+                    partition_name: this.partition_name,
+                    partition_indices: this.partition_indices,
+                    data: this.data,
+                    storage_location: this.storage_location,
+                    primary_key: this.primary_key,
+                    last_update_dt: this.last_update_dt,
+                    delete_key_list: this.delete_key_list
+                }, null, 2);
                 output_file_path = this.json_output_file_path;
             }
 
-            // Ensure the directory exists where the file will be stored
             const dirname = path.dirname(output_file_path);
             await fs.mkdir(dirname, { recursive: true });
 
-            // Write to a temporary file first
             const tempFilePath = output_file_path + '.tmp';
             await fs.writeFile(tempFilePath, data_to_write);
 
-            // Rename the temporary file to the actual file name (atomic operation)
             await fs.rename(tempFilePath, output_file_path);
         } catch (error) {
             console.error("Error writing file:", error);
-            // Revert 'is_dirty' if write fails
             this.is_dirty = true;
         } finally {
             clearTimeout(lockTimeout);
@@ -175,25 +162,23 @@ export class partition<T extends object> implements type_partition {
             let data_from_file = await fs.readFile(output_file_path);
             let data_to_parse;
 
+            let parsed_data, partition_name, partition_indices, data, storage_location, primary_key, last_update_dt, delete_key_list;
+
             if (this.do_compression) {
-                const decompressed_data = await gunzip(data_from_file);
-                data_to_parse = decompressed_data.toString('utf-8');
+                parsed_data = await uncompress_partition(data_from_file);
             }
             else {
                 data_to_parse = data_from_file.toString('utf-8');
+                parsed_data = JSON.parse(data_to_parse);
             }
 
-            let parsed_data = JSON.parse(data_to_parse);
-
-            let { partition_name, partition_indices, data, storage_location, primary_key, last_update_dt, delete_key_list } = parsed_data;
-
-            this.partition_name = partition_name;
-            this.partition_indices = partition_indices;
-            this.data = data;
-            this.storage_location = storage_location;
-            this.primary_key = primary_key;
-            this.last_update_dt = new Date(last_update_dt);
-            this.delete_key_list = delete_key_list || [];
+            this.partition_name = parsed_data.partition_name;
+            this.partition_indices = parsed_data.partition_indices;
+            this.data = parsed_data.data;
+            this.storage_location = parsed_data.storage_location;
+            this.primary_key = parsed_data.primary_key;
+            this.last_update_dt = new Date(parsed_data.last_update_dt);
+            this.delete_key_list = parsed_data.delete_key_list || [];
 
             return Promise.resolve();
         }

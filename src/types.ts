@@ -48,9 +48,9 @@ export type type_table = {
     output_file_path: string; // File system path where table data is stored.
     primary_key: string; // Field used to uniquely identify records within the table.
     proto?: any; // Prototype object used to instantiate new records.
-    do_compression:boolean;
+    do_compression: boolean;
 
-    table_connections: { [key: string]: {join_key: string, join_type: type_join_type} };
+    table_connections: { [key: string]: { join_key: string, join_type: type_join_type } };
 
     // Mappings for partition management based on partition names and primary keys.
     partitions_by_partition_name: { [key: string]: type_partition };
@@ -131,3 +131,15 @@ export type type_database = {
     save_database: () => Promise<void>;
     read_from_file: () => Promise<void>;
 }
+
+export type type_tree_node_data_for_insert = {
+    start?: number,
+    stop?: number,
+    occurrence: number
+} & { [key: string]: any };
+
+export type type_tree_node_data = {
+    start: number,
+    stop: number,
+    occurrence: number
+} & { [key: string]: any };

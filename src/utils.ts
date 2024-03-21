@@ -214,3 +214,27 @@ export const yield_nested_children = (parent_objects: any[] | any, search_key: s
 
     return found_children;
 }
+
+
+export const print_nested_object = (obj: any, indent = 0): void => {
+    for (const key in obj) {
+        if (typeof obj[key] === 'object' && obj[key] !== null) {
+            console.log(' '.repeat(indent) + key + ':');
+            print_nested_object(obj[key], indent + 2); // Increase indentation for nested objects
+        } else {
+            console.log(' '.repeat(indent) + key + ': ' + obj[key]);
+        }
+    }
+}
+
+export const flatten_dict = (obj: any, prefix = ''): any => {
+    return Object.keys(obj).reduce<any>((accumulator, key) => {
+        const prefixedKey = prefix ? `${prefix}.${key}` : key;
+        if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+            Object.assign(accumulator, flatten_dict(obj[key], prefixedKey));
+        } else {
+            accumulator[prefixedKey] = obj[key];
+        }
+        return accumulator;
+    }, {});
+}

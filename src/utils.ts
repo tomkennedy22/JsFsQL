@@ -216,11 +216,18 @@ export const yield_nested_children = (parent_objects: any[] | any, search_key: s
 }
 
 
-export const print_nested_object = (obj: any, indent = 0): void => {
+export const print_nested_object = (obj: any, indent = 0, max_depth = 20): void => {
+    if (indent == 0) {
+        console.log('\n\n')
+    }
+    else if (indent > (max_depth * 2)) {
+        return;
+    }
+
     for (const key in obj) {
         if (typeof obj[key] === 'object' && obj[key] !== null) {
             console.log(' '.repeat(indent) + key + ':');
-            print_nested_object(obj[key], indent + 2); // Increase indentation for nested objects
+            print_nested_object(obj[key], indent + 2, max_depth); // Increase indentation for nested objects
         } else {
             console.log(' '.repeat(indent) + key + ': ' + obj[key]);
         }

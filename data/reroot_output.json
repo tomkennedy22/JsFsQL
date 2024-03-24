@@ -1,0 +1,231 @@
+{
+  "root": {
+    "name": "c",
+    "filter": {
+      "filtera": 1,
+      "filterb": 2
+    },
+    "sort": {},
+    "find_fn": "find",
+    "filter_up": false,
+    "children_obj": {
+      "d": {},
+      "e": {},
+      "b": {
+        "filter": {},
+        "sort": {},
+        "find_fn": "find",
+        "name": "b",
+        "filter_up": false,
+        "children": {}
+      }
+    },
+    "children_list": [
+      {
+        "name": "d",
+        "filter": {},
+        "sort": {},
+        "find_fn": "find",
+        "filter_up": false,
+        "children_obj": {},
+        "children_list": []
+      },
+      {
+        "name": "e",
+        "filter": {},
+        "sort": {},
+        "find_fn": "find",
+        "filter_up": false,
+        "children_obj": {},
+        "children_list": []
+      },
+      {
+        "name": "b",
+        "filter": {},
+        "sort": {},
+        "find_fn": "find",
+        "filter_up": false,
+        "children_obj": {
+          "a": {
+            "filter": {
+              "helloworld": "world"
+            },
+            "sort": {},
+            "find_fn": "find",
+            "name": "a",
+            "filter_up": false,
+            "children": {
+              "b2": {
+                "filter": {},
+                "sort": {},
+                "find_fn": "find",
+                "name": "b2",
+                "filter_up": false,
+                "children": {}
+              },
+              "aa": {
+                "filter": {},
+                "sort": {},
+                "find_fn": "find",
+                "name": "aa",
+                "filter_up": false,
+                "children": {}
+              }
+            }
+          }
+        },
+        "children_list": [
+          {
+            "name": "a",
+            "filter": {
+              "helloworld": "world"
+            },
+            "sort": {},
+            "find_fn": "find",
+            "filter_up": false,
+            "children_obj": {
+              "b2": {},
+              "aa": {}
+            },
+            "children_list": [
+              {
+                "name": "b2",
+                "filter": {},
+                "sort": {},
+                "find_fn": "find",
+                "filter_up": false,
+                "children_obj": {},
+                "children_list": []
+              },
+              {
+                "name": "aa",
+                "filter": {},
+                "sort": {},
+                "find_fn": "find",
+                "filter_up": false,
+                "children_obj": {},
+                "children_list": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "graph_stats": {
+    "most_specific_filter_node": {
+      "name": "c",
+      "filter": {
+        "filtera": 1,
+        "filterb": 2
+      },
+      "sort": {},
+      "find_fn": "find",
+      "filter_up": false,
+      "children_obj": {
+        "d": {},
+        "e": {},
+        "b": {
+          "filter": {},
+          "sort": {},
+          "find_fn": "find",
+          "name": "b",
+          "filter_up": false,
+          "children": {}
+        }
+      },
+      "children_list": [
+        {
+          "name": "d",
+          "filter": {},
+          "sort": {},
+          "find_fn": "find",
+          "filter_up": false,
+          "children_obj": {},
+          "children_list": []
+        },
+        {
+          "name": "e",
+          "filter": {},
+          "sort": {},
+          "find_fn": "find",
+          "filter_up": false,
+          "children_obj": {},
+          "children_list": []
+        },
+        {
+          "name": "b",
+          "filter": {},
+          "sort": {},
+          "find_fn": "find",
+          "filter_up": false,
+          "children_obj": {
+            "a": {
+              "filter": {
+                "helloworld": "world"
+              },
+              "sort": {},
+              "find_fn": "find",
+              "name": "a",
+              "filter_up": false,
+              "children": {
+                "b2": {
+                  "filter": {},
+                  "sort": {},
+                  "find_fn": "find",
+                  "name": "b2",
+                  "filter_up": false,
+                  "children": {}
+                },
+                "aa": {
+                  "filter": {},
+                  "sort": {},
+                  "find_fn": "find",
+                  "name": "aa",
+                  "filter_up": false,
+                  "children": {}
+                }
+              }
+            }
+          },
+          "children_list": [
+            {
+              "name": "a",
+              "filter": {
+                "helloworld": "world"
+              },
+              "sort": {},
+              "find_fn": "find",
+              "filter_up": false,
+              "children_obj": {
+                "b2": {},
+                "aa": {}
+              },
+              "children_list": [
+                {
+                  "name": "b2",
+                  "filter": {},
+                  "sort": {},
+                  "find_fn": "find",
+                  "filter_up": false,
+                  "children_obj": {},
+                  "children_list": []
+                },
+                {
+                  "name": "aa",
+                  "filter": {},
+                  "sort": {},
+                  "find_fn": "find",
+                  "filter_up": false,
+                  "children_obj": {},
+                  "children_list": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "depth_from_root": 0
+  }
+}

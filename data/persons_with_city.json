@@ -1,0 +1,21 @@
+[
+  {
+    "city": "Los Angeles",
+    "state": "California",
+    "population": 12815475,
+    "lat": 34.1139,
+    "long": -118.4068,
+    "timezone": "P",
+    "player_count": 2665,
+    "metro": "Los Angeles",
+    "state_abbreviation": "CA",
+    "city_state": "Los Angeles, California",
+    "person": [
+      {
+        "person_id": 2,
+        "name": "Jane Doe",
+        "city_state": "Los Angeles, California"
+      }
+    ]
+  }
+]

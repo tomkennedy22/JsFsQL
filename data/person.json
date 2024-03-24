@@ -1,0 +1,27 @@
+[
+    {
+        "person_id": 1,
+        "name": "John Doe",
+        "city_state": "New York, New York"
+    },
+    {
+        "person_id": 2,
+        "name": "Jane Doe",
+        "city_state": "Los Angeles, California"
+    },
+    {
+        "person_id": 3,
+        "name": "Jim Doe",
+        "city_state": "Chicago, Illinois"
+    },
+    {
+        "person_id": 4,
+        "name": "Jill Doe",
+        "city_state": "Houston, Texas"
+    },
+    {
+        "person_id": 5,
+        "name": "Jack Doe",
+        "city_state": "Philadelphia, Pennsylvania"
+    }
+]

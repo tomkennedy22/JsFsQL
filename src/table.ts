@@ -17,7 +17,7 @@ export class table<T extends object> implements type_table {
     partition_name_by_primary_key: { [key: string]: string };
     do_compression: boolean;
 
-    table_connections: { [key: string]: {join_key: string, join_type: type_join_type} };
+    table_connections: { [key: string]: { join_key: string, join_type: type_join_type } };
 
     delete_key_list: string[];
 
@@ -213,7 +213,7 @@ export class table<T extends object> implements type_table {
             if (!delete_list) {
                 return item;
             }
-            
+
             for (let delete_key of delete_list) {
                 // @ts-ignore
                 delete item[delete_key];
@@ -466,7 +466,6 @@ export class table<T extends object> implements type_table {
 
     find(input_query?: type_loose_query): results<T> {
 
-        // console.log('In find', { input_query, table_name: this.table_name })
         if (!input_query) {
             return new results(Object.values(this.partitions_by_partition_name).map(partition => Object.values(partition.data)).flat());
         }
@@ -493,7 +492,7 @@ export class table<T extends object> implements type_table {
                 let query_clause = query[index_name] as type_query_clause;
                 valid_partitions = this.index_partition_filter(valid_partitions, index_name, query_clause);
 
-                delete query[index_name];
+                // delete query[index_name];
             }
         }
 

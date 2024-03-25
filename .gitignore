@@ -1,3 +1,5 @@
 *node_modules*
 *databases*
 *.erb*
+*data/**.json
+*data/reroot_output.json

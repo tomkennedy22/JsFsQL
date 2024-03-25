@@ -5,7 +5,7 @@ import { type_connection_init, type_join_criteria, type_table_init } from "./typ
 import { squeeze_list_of_dicts, unsqueeze_list_of_dicts } from "./squeeze";
 import zlib from 'zlib';
 import util from 'util';
-import { constant_find_fn, nested_join } from "./join";
+import { constant_find_fn, nested_join, type_find_fn } from "./join";
 import { print_nested_object } from "./utils";
 
 const gunzip = util.promisify(zlib.gunzip);
@@ -32,30 +32,30 @@ const test = async () => {
 
 
     const db_collection_list: type_table_init[] = [
-        // {
-        //     table_name: "league_season",
-        //     primary_key: "league_season_id",
-        //     indices: ["league_id"],
-        //     delete_key_list: [],
-        // },
-        // {
-        //     table_name: "league",
-        //     primary_key: "league_id",
-        //     indices: [],
-        //     delete_key_list: [],
-        // },
-        // {
-        //     table_name: "team",
-        //     primary_key: "team_id",
-        //     indices: ["league_id"],
-        //     delete_key_list: [],
-        // },
-        // {
-        //     table_name: "team_season",
-        //     primary_key: "team_season_id",
-        //     indices: ["season"],
-        //     delete_key_list: [],
-        // },
+        {
+            table_name: "league_season",
+            primary_key: "league_season_id",
+            indices: ["league_id"],
+            delete_key_list: [],
+        },
+        {
+            table_name: "league",
+            primary_key: "league_id",
+            indices: [],
+            delete_key_list: [],
+        },
+        {
+            table_name: "team",
+            primary_key: "team_id",
+            indices: ["league_id"],
+            delete_key_list: [],
+        },
+        {
+            table_name: "team_season",
+            primary_key: "team_season_id",
+            indices: ["season"],
+            delete_key_list: [],
+        },
         // {
         //     table_name: "conference",
         //     primary_key: "conference_id",
@@ -107,17 +107,18 @@ const test = async () => {
     ]
 
     let collection_connection_list: type_connection_init[] = [
-        // { table_a_name: 'league', table_b_name: 'league_season', join_key: 'league_id', join_type: 'one_to_many' },
-        // { table_a_name: 'league_season', table_b_name: 'tier_season', join_key: 'league_season_id', join_type: 'one_to_many' },
+        { table_a_name: 'league', table_b_name: 'league_season', join_key: 'league_id', join_type: 'one_to_many' },
+        { table_a_name: 'league_season', table_b_name: 'team_season', join_key: 'league_season_id', join_type: 'one_to_many' },
         // { table_a_name: 'tier_season', table_b_name: 'conference_season', join_key: 'tier_season_id', join_type: 'one_to_many' },
         // { table_a_name: 'conference_season', table_b_name: 'division_season', join_key: 'conference_season_id', join_type: 'one_to_many' },
         // { table_a_name: 'league_season', table_b_name: 'division_season', join_key: 'league_season_id', join_type: 'one_to_many' },
         // { table_a_name: 'division_season', table_b_name: 'team_season', join_key: 'division_season_id', join_type: 'one_to_many' },
-        // { table_a_name: 'team', table_b_name: 'team_season', join_key: 'team_id', join_type: 'one_to_many' },
+        { table_a_name: 'team', table_b_name: 'team_season', join_key: 'team_id', join_type: 'one_to_many' },
         // { table_a_name: 'conference', table_b_name: 'conference_season', join_key: 'conference_id', join_type: 'one_to_many' },
         // { table_a_name: 'division', table_b_name: 'division_season', join_key: 'division_id', join_type: 'one_to_many' },
         // { table_a_name: 'tier', table_b_name: 'tier_season', join_key: 'tier_id', join_type: 'one_to_many' },
-        { table_a_name: 'city', table_b_name: 'person', join_key: 'city_state', join_type: 'one_to_many' }
+        { table_a_name: 'city', table_b_name: 'person', join_key: 'city_state', join_type: 'one_to_many' },
+        { table_a_name: 'city', table_b_name: 'team', join_key: 'city_state', join_type: 'one_to_many' }
     ]
 
     db_collection_list.forEach(function (col_obj) {
@@ -128,80 +129,60 @@ const test = async () => {
         db.add_connection(con_obj);
     })
 
-    let person_json_path = path.resolve(__dirname, `../data/person.json`);
-    let person_data = JSON.parse(await fs.readFile(person_json_path, 'utf8'));
+    let json_path = path.resolve(__dirname, `../data/city_master.json`);
+    let data = JSON.parse(await fs.readFile(json_path, 'utf8'));
+    db.tables.city.insert(data);
 
-    let city_json_path = path.resolve(__dirname, `../data/city_master.json`);
-    let city_data = JSON.parse(await fs.readFile(city_json_path, 'utf8'));
+    let flat_json_file_names = ['league', 'league_season'];
+    let obj_json_file_names = ['team', 'team_season', 'person'];
 
-    db.tables.person.insert(person_data);
-    db.tables.city.insert(city_data);
+    for (let file_name of flat_json_file_names) {
+        let json_path = path.resolve(__dirname, `../data/${file_name}.json`);
+        let data = JSON.parse(await fs.readFile(json_path, 'utf8'));
+        db.tables[file_name].insert(data);
+    }
+
+    for (let file_name of obj_json_file_names) {
+        let json_path = path.resolve(__dirname, `../data/${file_name}.json`);
+        let data = JSON.parse(await fs.readFile(json_path, 'utf8'));
+        db.tables[file_name].insert(Object.values(data));
+    }
 
     await db.save_database();
 
     let start_ts = Date.now();
 
-    let query_graph = {
-        city: {
+    let query_graph_json = {
+        league_season: {
+            filter: { league_id: 1, season: 2023 },
+            find_fn: 'findOne' as type_find_fn,
             children: {
-                person: {
-                    alias: 'persons',
-                    find_fn: constant_find_fn.findOne,
-                    filter: {
-                        "name": "Jane Doe"
-                    },
-                    filter_up: true,
+                league: {},
+                team_season: {
+                    name: 'team_seasons',
+                    sort: { power_rank: -1 },
+                    children: {
+                        team: {
+                            children: {
+                                city: {},
+                            }
+                        },
+                    }
                 }
             }
         }
     }
 
-    let persons_with_city = nested_join(db, query_graph)
+    let results = nested_join(db, query_graph_json)
 
     let end_ts = Date.now();
     console.log('Time taken to join:', end_ts - start_ts, 'ms')
 
     let persons_with_city_json_path = path.resolve(__dirname, `../data/persons_with_city.json`);
-    write_json_to_file(persons_with_city_json_path, persons_with_city);
+    write_json_to_file(persons_with_city_json_path, results);
 
-    // let qg = new QueryGraph({
-    //     a: {
-    //         filter: { helloworld: 'world' },
-    //         children: {
-    //             b: {
-    //                 children: {
-    //                     c: {
-    //                         filter: { filtera: 1, filterb: 2 },
-    //                         children: {
-    //                             d: {},
-    //                             e: {}
-    //                         }
-    //                     }
-    //                 }
-    //             },
-    //             b2: {},
-    //             aa: {}
-    //         }
-    //     }
-    // })
-
-
-
-    // qg.reroot_from_most_filtered_node();
-
-    // // qg.reroot_from_node_key('c')
-    // qg.orphan_node()
-
-    // print_nested_object({ location: 'done', root: qg.root }, 0, 10000)
-
-    // let reroot_path = path.resolve(__dirname, `../data/reroot_output.json`);
-    // write_json_to_file(reroot_path, qg);
-
-    // console.log('Graph Stats', qg.graph_stats)
-
-
-    // print_nested_object({ query_graph, })
-    // print_nested_object({ reroot_graph: reroot_graph(query_graph, 'b') })
+    // let query_graph_file_path = path.resolve(__dirname, `../data/query_graph.json`);
+    // write_json_to_file(query_graph_file_path, query_graph);
 
 }
 

@@ -1,11 +1,11 @@
 import { database } from "./database";
 import fs from "fs/promises";
 import path from "path";
-import { type_connection_init, type_table_init } from "./types";
+import { type_connection_init, type_join_criteria, type_table_init } from "./types";
 import { squeeze_list_of_dicts, unsqueeze_list_of_dicts } from "./squeeze";
 import zlib from 'zlib';
 import util from 'util';
-import { QueryGraph, nested_join, reroot_graph } from "./join";
+import { constant_find_fn, nested_join } from "./join";
 import { print_nested_object } from "./utils";
 
 const gunzip = util.promisify(zlib.gunzip);
@@ -128,80 +128,76 @@ const test = async () => {
         db.add_connection(con_obj);
     })
 
-    // let person_json_path = path.resolve(__dirname, `../data/person.json`);
-    // let person_data = JSON.parse(await fs.readFile(person_json_path, 'utf8'));
+    let person_json_path = path.resolve(__dirname, `../data/person.json`);
+    let person_data = JSON.parse(await fs.readFile(person_json_path, 'utf8'));
 
-    // let city_json_path = path.resolve(__dirname, `../data/city_master.json`);
-    // let city_data = JSON.parse(await fs.readFile(city_json_path, 'utf8'));
+    let city_json_path = path.resolve(__dirname, `../data/city_master.json`);
+    let city_data = JSON.parse(await fs.readFile(city_json_path, 'utf8'));
 
-    // db.tables.person.insert(person_data);
-    // db.tables.city.insert(city_data);
+    db.tables.person.insert(person_data);
+    db.tables.city.insert(city_data);
 
     await db.save_database();
 
-    let query_graph: any = {
+    let start_ts = Date.now();
+
+    let query_graph = {
         city: {
             children: {
                 person: {
+                    alias: 'persons',
+                    find_fn: constant_find_fn.findOne,
                     filter: {
                         "name": "Jane Doe"
                     },
                     filter_up: true,
-                    children: {
-                        b: {
-                            children: {
-                                d: {}
-                            }
-                        }
-                    }
                 }
             }
         }
     }
 
-    // let persons_with_city = nested_join(db, query_graph)
+    let persons_with_city = nested_join(db, query_graph)
 
-    // let persons_with_city_json_path = path.resolve(__dirname, `../data/persons_with_city.json`);
-    // write_json_to_file(persons_with_city_json_path, persons_with_city);
+    let end_ts = Date.now();
+    console.log('Time taken to join:', end_ts - start_ts, 'ms')
 
-    let qg = new QueryGraph({
-        a: {
-            filter: { helloworld: 'world' },
-            children: {
-                b: {
-                    children: {
-                        c: {
-                            filter: { filtera: 1, filterb: 2 },
-                            children: {
-                                d: {
-                                },
-                                e: {}
-                            }
-                        }
-                    }
-                },
-                b2: {},
-                aa: {}
-            }
-        }
-    })
+    let persons_with_city_json_path = path.resolve(__dirname, `../data/persons_with_city.json`);
+    write_json_to_file(persons_with_city_json_path, persons_with_city);
 
-    // print_nested_object({
-    //     qg
+    // let qg = new QueryGraph({
+    //     a: {
+    //         filter: { helloworld: 'world' },
+    //         children: {
+    //             b: {
+    //                 children: {
+    //                     c: {
+    //                         filter: { filtera: 1, filterb: 2 },
+    //                         children: {
+    //                             d: {},
+    //                             e: {}
+    //                         }
+    //                     }
+    //                 }
+    //             },
+    //             b2: {},
+    //             aa: {}
+    //         }
+    //     }
     // })
 
 
-    qg.reroot_from_most_filtered_node();
 
-    // qg.reroot_from_node_key('c')
-    qg.orphan_node()
+    // qg.reroot_from_most_filtered_node();
 
-    print_nested_object({ location: 'done', root: qg.root }, 0, 10000)
+    // // qg.reroot_from_node_key('c')
+    // qg.orphan_node()
 
-    let reroot_path = path.resolve(__dirname, `../data/reroot_output.json`);
-    write_json_to_file(reroot_path, qg);
+    // print_nested_object({ location: 'done', root: qg.root }, 0, 10000)
 
-    console.log('Graph Stats', qg.graph_stats)
+    // let reroot_path = path.resolve(__dirname, `../data/reroot_output.json`);
+    // write_json_to_file(reroot_path, qg);
+
+    // console.log('Graph Stats', qg.graph_stats)
 
 
     // print_nested_object({ query_graph, })

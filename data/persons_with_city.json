@@ -10,12 +10,10 @@
     "metro": "Los Angeles",
     "state_abbreviation": "CA",
     "city_state": "Los Angeles, California",
-    "person": [
-      {
-        "person_id": 2,
-        "name": "Jane Doe",
-        "city_state": "Los Angeles, California"
-      }
-    ]
+    "persons": {
+      "person_id": 2,
+      "name": "Jane Doe",
+      "city_state": "Los Angeles, California"
+    }
   }
 ]

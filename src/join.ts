@@ -5,6 +5,7 @@ import { distinct, get_from_dict, index_by, group_by, nest_children, deep_copy, 
 export class QueryNode {
 
     name: string;
+    alias: string;
     filter?: type_loose_query;
     sort?: any;
     find_fn?: 'find' | 'findOne';
@@ -13,15 +14,117 @@ export class QueryNode {
     children_list: QueryNode[];
     parent_node?: QueryNode;
 
-    constructor(init_data: type_join_criteria) {
+    results: type_results = [];
+    found_ids?: any[] = [];
+
+    constructor(name: string, init_data: type_join_criteria) {
         this.filter = init_data.filter || {};
         this.sort = init_data.sort || {};
         this.find_fn = init_data.find_fn || 'find';
-        this.name = init_data.name || '';
+        this.name = name || '';
+        this.alias = init_data.alias || name;
         this.filter_up = init_data.filter_up || false;
         this.children_obj = init_data.children || {};
         this.children_list = [];
+
+
     }
+
+    join(db: type_database): type_results {
+
+        let table = db.tables[this.name];
+        this.found_ids = []
+
+        let find_fn: 'find' | 'findOne' = this.find_fn || 'find';
+        let filter = this.filter || {};
+        let name = this.name;
+
+        let parent_connection: any;
+        let parent_join_key: string | null = null;
+        let parent_values;
+
+        console.log({ location: 'join 1', name, table_connections: table.table_connections, find_fn, parent_node: this.parent_node, filter, parent_join_key, parent_connection, results: this.results.length, found_ids: this.found_ids })
+
+        // If there is a parent, get the join key, then find all distinct values. 
+        // This speeds up the FIND function below by adding more specificity to the filter.
+        if (this.parent_node) {
+            parent_connection = table.table_connections[this.parent_node.name];
+            parent_join_key = parent_connection.join_key;
+            if (parent_join_key) {
+                parent_values = distinct(this.parent_node.results.map(row => get_from_dict(row, parent_join_key as string))).filter(value => value);
+
+                if (parent_values.length > 0) {
+                    filter[parent_join_key] = { $in: parent_values };
+                }
+            }
+        }
+
+        console.log({ location: 'join 2', name, parent_values, table_connections: table.table_connections, find_fn, parent_node: this.parent_node, filter, parent_join_key, parent_connection, results: this.results.length, found_ids: this.found_ids })
+
+        if (this.found_ids.length > 0) {
+            filter[table.primary_key] = { $in: this.found_ids };
+        }
+        this.results = table.find(filter);
+        let results_by_join_key;
+
+
+        // Run joins for all children, recursively
+        for (let child of this.children_list) {
+            this.results = child.join(db);
+        }
+
+        // Store found_ids for later use
+        this.found_ids = this.results.map(row => get_from_dict(row, table.primary_key)).filter(value => value);
+
+
+        console.log({ location: 'join 3', name, table_connections: table.table_connections, find_fn, parent_node: this.parent_node, filter, parent_join_key, parent_connection, results: this.results.length, found_ids: this.found_ids })
+
+        // Set results_by_join_key based on join_type & parent_join_key
+        if (this.parent_node && parent_connection && parent_join_key) {
+            if (parent_connection.join_type === 'one_to_many' || parent_connection.join_type === 'one_to_one' || find_fn == 'findOne') {
+                results_by_join_key = index_by(this.results, parent_join_key);
+            }
+            else if (parent_connection.join_type === 'many_to_one') {
+                results_by_join_key = group_by(this.results, parent_join_key);
+            }
+        }
+
+        console.log({ location: 'join 4', name, results_by_join_key, parent_connection })
+
+        // Sort results_by_join_key based on sort criteria
+        if (this.parent_node && parent_connection && parent_join_key && (parent_connection.join_type === 'many_to_one' && !(this.find_fn == 'findOne')) && this.sort) {
+            for (let key in results_by_join_key) {
+                results_by_join_key[key] = results_by_join_key[key].sort((a: any, b: any) => {
+                    for (let sort_key in this.sort) {
+                        let sort_val = this.sort[sort_key];
+                        let val_a = get_from_dict(a, sort_key);
+                        let val_b = get_from_dict(b, sort_key);
+                        if (val_a < val_b) {
+                            return sort_val;
+                        }
+                        else if (val_a > val_b) {
+                            return sort_val * -1;
+                        }
+                    }
+                    return 0;
+                });
+            }
+        }
+
+        // Nest children into parent results
+        if (this.parent_node && parent_connection && parent_join_key) {
+            this.parent_node.results = nest_children(this.parent_node.results, results_by_join_key, parent_join_key, this.alias);
+            // if (this.filter_up) {
+            //     this.parent_node.results = this.parent_node.results.filter(row => row[name] != undefined);
+            // }
+
+            return this.parent_node.results;
+        }
+        else {
+            return find_fn == 'find' ? this.results : first_element(this.results);
+        }
+    }
+
 }
 
 export class QueryGraph {
@@ -34,11 +137,9 @@ export class QueryGraph {
 
     constructor(init_data: { [key: string]: type_join_criteria }) {
         let root_key = Object.keys(init_data)[0];
-        this.root = new QueryNode({ ...init_data[root_key], name: root_key });
+        this.root = new QueryNode(root_key, { ...init_data[root_key] });
 
-        // print_nested_object({ location: 'constructor', init_data, root_key, root: this.root })
-
-        this.build_graph(init_data[root_key], this.root);
+        this.build_graph(this.root);
         this.build_graph_stats();
     }
 
@@ -82,29 +183,25 @@ export class QueryGraph {
             sort: node.sort,
             find_fn: node.find_fn,
             name: node.name,
+            alias: node.alias,
             filter_up: node.filter_up,
             children: children,
         }
 
     }
 
-    build_graph(init_data: type_join_criteria, root: QueryNode) {
-        // print_nested_object({ location: 'right inside build_graph', root, init_data });
-
+    build_graph(root: QueryNode) {
         let children = root.children_obj;
-
-        // print_nested_object({ location: 'right after children', children, root, });
 
         for (let key in children) {
             let child = children[key];
 
-            // print_nested_object({ location: 'inside key loop', key, child });
-            let node = new QueryNode({ ...child, name: key });
+            let node = new QueryNode(key, { ...child });
             node.parent_node = root;
             root.children_list.push(node);
 
             if (child.children) {
-                this.build_graph(child.children, node);
+                this.build_graph(node);
             }
         }
     }
@@ -140,6 +237,7 @@ export class QueryGraph {
     flip_parent_to_child(node: QueryNode, new_parent_node: QueryNode | undefined): void {
         let parent_node = node.parent_node;
         if (!parent_node) {
+            node.parent_node = new_parent_node;
             return;
         }
 
@@ -188,7 +286,6 @@ export class QueryGraph {
         node.parent_node = undefined;
     }
 
-
 }
 
 
@@ -204,142 +301,26 @@ type join_results = {
     tables: { [key: string]: table_join_results };
 }
 
+export type type_find_fn = 'find' | 'findOne';
+export const constant_find_fn: { find: type_find_fn; findOne: type_find_fn } = { find: 'find', findOne: 'findOne' }
 
 type type_join_criteria = {
+    name?: string;
     filter?: type_loose_query;
     sort?: any;
     find_fn?: 'find' | 'findOne';
-    name?: string;
+    alias?: string;
     filter_up?: boolean;
     children?: { [key: string]: type_join_criteria };
 }
 
 export const nested_join = (db: type_database, join_criteria: { [key: string]: type_join_criteria }): type_results => {
-    return recurse_nested_join(db, null, [] as type_results, join_criteria);
+    let query_graph = new QueryGraph(join_criteria);
+    let original_root_node_name = query_graph.root.name;
+    query_graph.reroot_from_most_filtered_node();
+    print_nested_object({ location: 'nested_join', root: query_graph.root })
+    query_graph.root.join(db);
+
+    query_graph.reroot_from_node_key(original_root_node_name);
+    return query_graph.root.join(db);
 }
-
-
-export const recurse_nested_join = (db: type_database, parent_name: string | null, parent_array: type_results, join_criteria_dict: { [key: string]: type_join_criteria }): type_results => {
-    for (let table_name in join_criteria_dict) {
-        let table = db.tables[table_name];
-
-        let criteria = join_criteria_dict[table_name] || {};
-        let find_fn: 'find' | 'findOne' = criteria.find_fn || 'find';
-        let filter = criteria.filter || {};
-        let name = criteria.name || table_name;
-
-        let parent_connection: any;
-        let parent_join_key: string | null = null;
-        if (parent_name) {
-            parent_connection = table.table_connections[parent_name];
-            parent_join_key = parent_connection.join_key;
-            if (parent_join_key) {
-                let parent_values = distinct(parent_array.map(row => get_from_dict(row, parent_join_key as string))).filter(value => value);
-
-                if (parent_values.length > 0) {
-                    filter[parent_join_key] = { $in: parent_values };
-                }
-            }
-        }
-
-        let data: type_results = table.find(filter);
-        let data_by_join_key;
-
-
-        if (criteria.children) {
-            let recursed_val = recurse_nested_join(db, table_name, data, criteria.children);
-            data = recursed_val;
-        }
-
-        if (parent_name && parent_connection && parent_join_key) {
-            if (parent_connection.join_type === 'one_to_many' || parent_connection.join_type === 'one_to_one' || find_fn == 'findOne') {
-                data_by_join_key = index_by(data, parent_join_key);
-            }
-            else if (parent_connection.join_type === 'many_to_one') {
-                data_by_join_key = group_by(data, parent_join_key);
-
-            }
-        }
-
-        if (parent_name && parent_connection && parent_join_key && parent_connection.join_type === 'many_to_one' && criteria.sort) {
-            for (let key in data_by_join_key) {
-                data_by_join_key[key] = data_by_join_key[key].sort((a: any, b: any) => {
-                    for (let sort_key in criteria.sort) {
-                        let sort_val = criteria.sort[sort_key];
-                        let val_a = get_from_dict(a, sort_key);
-                        let val_b = get_from_dict(b, sort_key);
-                        if (val_a < val_b) {
-                            return sort_val;
-                        }
-                        else if (val_a > val_b) {
-                            return sort_val * -1;
-                        }
-                    }
-                    return 0;
-                });
-            }
-        }
-
-        if (parent_name && parent_connection && parent_array && parent_join_key) {
-            parent_array = nest_children(parent_array, data_by_join_key, parent_join_key, name);
-            if (criteria.filter_up) {
-                parent_array = parent_array.filter(row => row[name] != undefined);
-            }
-            // parent_array = parent_array.filter(row => row[name] != undefined);
-        }
-        else {
-            parent_array = find_fn == 'find' ? data : first_element(data);
-        }
-    }
-
-    return parent_array;
-}
-
-
-
-export const reroot_graph = (originalRoot: { [key: string]: type_join_criteria }, newRootKey: string): { [key: string]: type_join_criteria } => {
-    let path: string[] = [];
-    let newRoot: type_join_criteria | null = null;
-
-    // Find the path from the original root to the new root
-    function findPath(node: type_join_criteria, key: string, currentPath: string[]): boolean {
-        if (node.children && key in node.children) {
-            path = [...currentPath, key];
-            newRoot = node.children[key];
-            return true;
-        }
-        if (node.children) {
-            for (let childKey in node.children) {
-                if (findPath(node.children[childKey], key, [...currentPath, childKey])) return true;
-            }
-        }
-        return false;
-    }
-
-    findPath({ children: originalRoot }, newRootKey, []);
-
-    // Function to recursively flip the graph
-    function flip(node: type_join_criteria, parentKey?: string): type_join_criteria {
-        const newChildren: { [key: string]: type_join_criteria } = {};
-        if (parentKey) {
-            newChildren[parentKey] = { children: {} };
-        }
-        if (node.children) {
-            for (let key in node.children) {
-                Object.assign(newChildren, flip(node.children[key], key).children);
-            }
-        }
-        node.children = newChildren;
-        return node;
-    }
-
-    // Initialize flip with the new root and its immediate parent
-    if (path.length > 1 && newRoot) { // Ensure there's a parent to the new root
-        const parentKey = path[path.length - 2];
-        flip(newRoot, parentKey);
-        originalRoot[parentKey] = newRoot; // Reassign the modified tree back
-    }
-
-    return originalRoot;
-}
-

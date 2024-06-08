@@ -47,7 +47,7 @@ export class table<T extends object> implements type_table<T> {
                 table_name: this.table_name,
                 indices: this.indices,
                 primary_key: this.primary_key,
-                partition_names: Object.keys(this.partitions_by_partition_name),
+                partition_names: Object.keys(this.partitions_by_partition_name).sort(),
                 output_file_path: this.output_file_path,
                 storage_location: this.storage_location,
                 table_connections: this.table_connections,

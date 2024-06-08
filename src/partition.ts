@@ -4,7 +4,6 @@ import { type_partition, type_partition_index } from "./types";
 import { deep_copy, get_from_dict, partition_name_from_partition_index } from "./utils";
 import { compress_partition, uncompress_partition } from "./squeeze";
 
-type PartitionData<T extends object> = { [key: string]: T };
 
 // The Partition class definition, implementing the Partition type.
 export class partition<T extends object> implements type_partition {
@@ -155,7 +154,6 @@ export class partition<T extends object> implements type_partition {
 
     read_from_file = async () => {
         let output_file_path = this.do_compression ? this.txt_output_file_path : this.json_output_file_path;
-        let proto = this.proto;
 
         try {
 

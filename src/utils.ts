@@ -1,5 +1,4 @@
 import { type_partition_index } from "./types";
-import * as dayjs from 'dayjs'
 
 // Helper function to generate a partition name based on the partition index.
 // It converts the index into a string format suitable for file naming.
@@ -65,7 +64,6 @@ export const set_to_dict = (container: { [key: string]: any } | Map<any, any>, k
                 (current_container as { [key: string]: any })[current_key] = value;
             }
         } else {
-            const next_key = keys[i + 1];
             if (current_container instanceof Map) {
                 if (!current_container.has(current_key) || !(current_container.get(current_key) instanceof Map)) {
                     current_container.set(current_key, new Map<any, any>());

@@ -3,10 +3,9 @@ import path from "path";
 import { type_join_criteria, type_join_type, type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_table, type_table_init } from "./types";
 import { get_from_dict, partition_name_from_partition_index } from "./utils";
 import { partition } from "./partition";
-import { results } from "./results";
 
 
-export class table<T extends object> implements type_table {
+export class table<T extends object> implements type_table<T> {
     table_name: string;
     indices: string[];
     storage_location: string;
@@ -142,42 +141,51 @@ export class table<T extends object> implements type_table {
      */
     insert(data: T[] | T) {
 
-        if (!Array.isArray(data)) {
-            data = [data];
-        }
-
-        data = this.cleanse_before_alter(data);
-
-        // Process each row for insertion into its partition
-        for (let row of data) {
-
-            let row_pk = get_from_dict(row, this.primary_key); // Capture the primary key value from the row
-
-            let partition_indices: type_partition_index = {};
-            // Generate partition index keys from the row based on the table indices
-            this.indices.forEach(index_name => {
-                partition_indices[index_name] = get_from_dict(row, index_name);
-            });
-
-            // Determine the partition name from the indices for row placement
-            let partition_name = partition_name_from_partition_index(partition_indices);
-            this.partition_name_by_primary_key[row_pk] = partition_name;
-
-            // Create a new partition if it doesn't exist
-            if (!this.partitions_by_partition_name.hasOwnProperty(partition_name)) {
-                this.partitions_by_partition_name[partition_name] = new partition({
-                    storage_location: this.storage_location,
-                    partition_indices,
-                    primary_key: this.primary_key,
-                    proto: this.proto,
-                    do_compression: this.do_compression,
-                    delete_key_list: this.delete_key_list || [],
-                });
+        try {
+            if (!Array.isArray(data)) {
+                data = [data];
             }
 
-            // Delegate the row insertion to the partition's own insert method
-            this.partitions_by_partition_name[partition_name].insert(row);
+            data = this.cleanse_before_alter(data);
+
+            // Process each row for insertion into its partition
+            for (let row of data) {
+
+                let row_pk = get_from_dict(row, this.primary_key); // Capture the primary key value from the row
+
+                let partition_indices: type_partition_index = {};
+                // Generate partition index keys from the row based on the table indices
+                this.indices.forEach(index_name => {
+                    partition_indices[index_name] = get_from_dict(row, index_name);
+                });
+
+                // Determine the partition name from the indices for row placement
+                let partition_name = partition_name_from_partition_index(partition_indices);
+                this.partition_name_by_primary_key[row_pk] = partition_name;
+
+                // Create a new partition if it doesn't exist
+                if (!this.partitions_by_partition_name.hasOwnProperty(partition_name)) {
+                    this.partitions_by_partition_name[partition_name] = new partition({
+                        storage_location: this.storage_location,
+                        partition_indices,
+                        primary_key: this.primary_key,
+                        proto: this.proto,
+                        do_compression: this.do_compression,
+                        delete_key_list: this.delete_key_list || [],
+                    });
+                }
+
+                // Delegate the row insertion to the partition's own insert method
+                this.partitions_by_partition_name[partition_name].insert(row);
+            }
+
+            return true;
         }
+        catch (error) {
+            console.error('Error inserting data into table:', error);
+            return false;
+        }
+
     }
 
     update(data: T[] | T): void {
@@ -423,8 +431,7 @@ export class table<T extends object> implements type_table {
 
         let rows = this.find(query);
 
-
-        for (let row of rows) {
+        const delete_row = (row: T) => {
             let row_pk = get_from_dict(row, this.primary_key);
             let partition_name = this.partition_name_by_primary_key[row_pk];
             let partition = this.partitions_by_partition_name[partition_name];
@@ -434,6 +441,18 @@ export class table<T extends object> implements type_table {
             delete partition.data[row_pk];
             delete this.partition_name_by_primary_key[row_pk];
         }
+
+
+        if (Array.isArray(rows)) {
+            for (let row of rows) {
+                delete_row(row);
+            }
+        }
+        else {
+            delete_row(rows);
+        }
+
+
 
         return Promise.resolve();
     }
@@ -451,6 +470,7 @@ export class table<T extends object> implements type_table {
         return Promise.resolve();
     }
 
+    // TODO - this assumes the primary key is an integer. Need to fix this.
     next_id = () => {
         let keys = Object.keys(this.partition_name_by_primary_key);
         if (keys.length === 0) {
@@ -464,19 +484,26 @@ export class table<T extends object> implements type_table {
         return Object.keys(this.partition_name_by_primary_key).length;
     }
 
-    find(input_query?: type_loose_query): results<T> {
+    find(input_query?: type_loose_query): T | T[] {
 
         if (!input_query) {
-            return new results(Object.values(this.partitions_by_partition_name).map(partition => Object.values(partition.data)).flat());
+            return Object.values(this.partitions_by_partition_name).map(partition => Object.values(partition.data)).flat();
         }
 
         if (input_query.hasOwnProperty('$or')) {
-            let result_set = new results<T>();
+            let combined_set = [];
             for (let subquery of input_query['$or']) {
-                result_set.push(...this.find(subquery));
+                let subquery_rows = this.find(subquery);
+
+                if (Array.isArray(subquery_rows)) {
+                    combined_set.push(...subquery_rows);
+                }
+                else {
+                    combined_set.push(subquery_rows);
+                }
             }
 
-            return result_set;
+            return combined_set;
         }
 
         let query = this.normalize_query(input_query);
@@ -491,19 +518,11 @@ export class table<T extends object> implements type_table {
             if (query[index_name]) {
                 let query_clause = query[index_name] as type_query_clause;
                 valid_partitions = this.index_partition_filter(valid_partitions, index_name, query_clause);
-
-                // delete query[index_name];
             }
         }
 
 
         // TODO better key filtering
-        // let rows;
-
-        // if (query[this.primary_key]) {
-        //     let query_clause = query[this.primary_key] as type_query_clause;
-        //     valid_partitions = valid_partitions.filter(partition => partition.partition_name === this.partition_name_by_primary_key[query_clause['$eq']]);
-        // }
 
         let rows = valid_partitions.map((partition: type_partition) => Object.values(partition.data)).flat() || [];
 
@@ -512,14 +531,16 @@ export class table<T extends object> implements type_table {
             rows = this.filter(rows, query_key, query_clause);
         }
 
-        // rows = rows.map(row => deep_copy(row));
-
-        return new results(rows);
+        return rows;
     }
 
     findOne(query?: type_loose_query): T | null {
 
         let data = this.find(query);
+
+        if (!Array.isArray(data)) {
+            return data;
+        }
         if (data.length == 0) {
             return null;
         }

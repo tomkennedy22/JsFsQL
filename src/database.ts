@@ -6,7 +6,7 @@ import { table } from "./table";
 
 export class database implements type_database {
     dbname: string;
-    tables: { [key: string]: type_table };
+    tables: { [key: string]: type_table<any> };
     folder_path: string;
     storage_location: string;
     output_file_path: string;
@@ -22,7 +22,7 @@ export class database implements type_database {
         this.do_compression = do_compression;
     }
 
-    add_table({ table_name, indices, primary_key, proto, delete_key_list }: { table_name: string, indices: string[], primary_key: string, proto?: any, delete_key_list: string[] }): type_table {
+    add_table({ table_name, indices, primary_key, proto, delete_key_list }: { table_name: string, indices: string[], primary_key: string, proto?: any, delete_key_list: string[] }): type_table<any> {
 
         if (!table_name) {
             throw new Error('Table name is required');
@@ -31,10 +31,10 @@ export class database implements type_database {
         if (!this.tables.hasOwnProperty(table_name)) {
             let new_table = new table({ table_name, indices, storage_location: this.storage_location, dbname: this.dbname, primary_key, proto, delete_key_list, do_compression: this.do_compression });
             this.tables[table_name] = new_table;
-            return new_table as type_table;
+            return new_table as type_table<any>;
         }
         else {
-            return this.tables[table_name] as type_table;
+            return this.tables[table_name] as type_table<any>;
         }
     }
 
@@ -58,7 +58,6 @@ export class database implements type_database {
 
         table_a.table_connections[table_b_name] = { join_key, join_type };
         table_b.table_connections[table_a_name] = { join_key, join_type: opposite_join_type[join_type] };
-        console.log('Added connection', { table_a_name, table_b_name, join_key, join_type })
     }
 
     save_database = async () => {
@@ -75,7 +74,6 @@ export class database implements type_database {
 
         let data = JSON.stringify(save_data, null, 2);
 
-        // Ensure the directory exists where the file will be stored
         const dirname = path.dirname(this.output_file_path);
         await fs.mkdir(dirname, { recursive: true });
         await fs.writeFile(this.output_file_path, data)
@@ -84,8 +82,6 @@ export class database implements type_database {
     }
 
     read_from_file = async () => {
-        // console.log('Reading from file');
-
         try {
             let data = await fs.readFile(this.output_file_path, 'utf-8');
             let parsed_data = JSON.parse(data);
@@ -95,23 +91,17 @@ export class database implements type_database {
             this.storage_location = storage_location;
             this.do_compression = do_compression;
 
-            // Collecting promises for each table read operation
             const tableReadPromises = tables.map((table_info: any) => {
                 let { table_name, indices, primary_key, delete_key_list } = table_info;
-                // Assume add_table returns an instance with a read_from_file method
                 table_info.table_obj = this.add_table({ table_name, indices, primary_key, proto: null, delete_key_list });
-                // Start reading from file and return the promise to be awaited
                 return table_info.table_obj.read_from_file();
             });
 
-            // Wait for all table read operations to complete
             await Promise.all(tableReadPromises);
-
-            // console.log('All available tables have been read from file');
 
         }
         catch (error) {
-            // console.log('Error reading from file', error, this.output_file_path)
+            console.log('Error reading from file', error, this.output_file_path)
         }
 
         return;

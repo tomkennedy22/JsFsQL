@@ -1,19 +1,7 @@
-import { results } from "./results";
 
 // Type alias for a partition index, which is a map of keys to arbitrary values.
 export type type_partition_index = { [key: string]: any };
 
-export type type_results = {
-    [key: string]: any;
-    left_join(right_dataset: type_results | type_table,
-        join: string | { left_key: string, right_key: string },
-        map_style: string,
-        map_keys: { left_field?: string, right_field: string }): type_results;
-    index_by(index_field: string): { [key: string]: any };
-    group_by(group_by_field: string): { [key: string]: any };
-    first(): any;
-
-}[];
 
 // Type definition for a Partition, outlining its structure and methods.
 export type type_partition = {
@@ -41,7 +29,7 @@ export type type_join_criteria = {
 }
 
 // Defines the structure for a database table, including its name, indices, storage strategy, and primary key.
-export type type_table = {
+export type type_table<T extends object> = {
     table_name: string; // Unique identifier for the table.
     indices: string[]; // List of fields indexed for efficient querying.
     storage_location: string; // File system path where table data is stored.
@@ -69,7 +57,7 @@ export type type_table = {
     insert: (data: any[] | any) => void;
     update: (data: any[] | any, fields_to_drop?: any[]) => void;
     delete: (query?: type_loose_query) => void;
-    find: (query?: type_loose_query) => results<any>;
+    find: (query?: type_loose_query) => T | T[];
     cleanse_before_alter: (data: any[]) => any[];
     findOne: (query?: type_loose_query) => any;
     output_to_file: () => Promise<void>;
@@ -121,12 +109,12 @@ export type type_connection_init = {
 
 export type type_database = {
     dbname: string;
-    tables: { [key: string]: type_table };
+    tables: { [key: string]: type_table<any> };
     folder_path: string;
     storage_location: string;
     output_file_path: string;
 
-    add_table: ({ table_name, indices, primary_key, proto }: type_table_init) => type_table;
+    add_table: ({ table_name, indices, primary_key, proto }: type_table_init) => type_table<any>;
     add_connection: ({ table_a_name, table_b_name, join_key, join_type }: type_connection_init) => void;
     save_database: () => Promise<void>;
     read_from_file: () => Promise<void>;

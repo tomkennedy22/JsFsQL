@@ -10,7 +10,7 @@ export const squeeze_list_of_dicts = (data: any[]): { key_list: string[], squeez
 
     let all_keys_set = new Set<string>();
     let all_values_set = new Set<any>();
-    let flattened_dicts = [];
+    let flattened_dicts: any[] = [];
 
     for (let row of data) {
         let flattened_row = flatten_dict(row);
@@ -29,11 +29,11 @@ export const squeeze_list_of_dicts = (data: any[]): { key_list: string[], squeez
         all_values_id_map.set(all_values_list[i], i);
     }
 
-    let flat_data = [];
+    let flat_data: any[] = [];
     let all_keys_list = Array.from(all_keys_set);
 
     for (let row of flattened_dicts) {
-        let flat_row = [];
+        let flat_row: any[] = [];
         for (let key of all_keys_list) {
             let val = row[key];
             if (val != null && val != undefined) {
@@ -51,7 +51,7 @@ export const squeeze_list_of_dicts = (data: any[]): { key_list: string[], squeez
 
 export const unsqueeze_list_of_dicts = ({ key_list, squeezed_data, all_values_list }: { key_list: string[], squeezed_data: any[][], all_values_list: any[] }): any[] => {
 
-    let unsqueezed_data = [];
+    let unsqueezed_data: any[] = [];
 
     for (let row of squeezed_data) {
         let new_row = {};

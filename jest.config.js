@@ -1,7 +1,7 @@
-// module.exports = {
-//   preset: 'ts-jest',
-//   testEnvironment: 'node',
-//   testMatch: [
-//     "**/tests/**test.ts",
-//   ]
-// };
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  testMatch: [
+    "**/tests/**test.ts",
+  ]
+};

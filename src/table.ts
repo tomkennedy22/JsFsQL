@@ -3,6 +3,7 @@ import path from "path";
 import { type_join_criteria, type_join_type, type_loose_query, type_partition, type_partition_index, type_query, type_query_clause, type_table, type_table_init } from "./types";
 import { get_from_dict, partition_name_from_partition_index } from "./utils";
 import { partition } from "./partition";
+import decircular from "decircular";
 
 
 export class table<T extends object> implements type_table<T> {
@@ -131,7 +132,7 @@ export class table<T extends object> implements type_table<T> {
             Promise.resolve();
         }
         catch (error) {
-            console.log('Error reading from file', error, this.output_file_path)
+            console.log('Error reading from file', this.output_file_path, error)
         }
     }
 
@@ -453,7 +454,6 @@ export class table<T extends object> implements type_table<T> {
         }
 
 
-
         return Promise.resolve();
     }
 
@@ -503,7 +503,7 @@ export class table<T extends object> implements type_table<T> {
                 }
             }
 
-            return combined_set;
+            return decircular(combined_set);
         }
 
         let query = this.normalize_query(input_query);
@@ -531,7 +531,7 @@ export class table<T extends object> implements type_table<T> {
             rows = this.filter(rows, query_key, query_clause);
         }
 
-        return rows;
+        return decircular(rows);
     }
 
     findOne(query?: type_loose_query): T | null {

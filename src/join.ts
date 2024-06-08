@@ -1,8 +1,9 @@
+import decircular from "decircular";
 import { type_database, type_loose_query } from "./types";
 import { distinct, get_from_dict, index_by, group_by, nest_children, first_element } from "./utils";
 
 
-export class QueryNode<T> {
+export class QueryNode {
 
     name: string;
     alias: string;
@@ -11,10 +12,10 @@ export class QueryNode<T> {
     find_fn?: 'find' | 'findOne';
     filter_up?: boolean;
     children_obj?: { [key: string]: type_join_criteria };
-    children_list: QueryNode<T>[];
-    parent_node?: QueryNode<T>;
+    children_list: QueryNode[];
+    parent_node?: QueryNode;
 
-    results: T | T[] = [];
+    results: any = [];
     found_ids?: any[] = [];
 
     constructor(name: string, init_data: type_join_criteria) {
@@ -28,7 +29,7 @@ export class QueryNode<T> {
         this.children_list = [];
     }
 
-    join(db: type_database): T | T[] {
+    join<T>(db: type_database): T {
 
         let table = db.tables[this.name];
         this.found_ids = []
@@ -151,11 +152,11 @@ export class QueryNode<T> {
 
 }
 
-export class QueryGraph<T> {
+export class QueryGraph {
 
-    root: QueryNode<T>;
+    root: QueryNode;
     graph_stats?: {
-        most_specific_filter_node: QueryNode<T>;
+        most_specific_filter_node: QueryNode;
         depth_from_root: number;
     }
 
@@ -170,13 +171,13 @@ export class QueryGraph<T> {
     build_graph_stats() {
 
         let most_specific_filter_count = this.root.filter ? Object.keys(this.root.filter).length : 0;
-        let most_specific_filter_node: QueryNode<T> | null = null;
+        let most_specific_filter_node: QueryNode | null = null;
         let depth_from_root = 0;
 
-        let children_list: QueryNode<T>[] = [this.root];
+        let children_list: QueryNode[] = [this.root];
 
         while (children_list.length > 0) {
-            let child = children_list.shift() as QueryNode<T>;
+            let child = children_list.shift() as QueryNode;
 
             if (child.filter && Object.keys(child.filter).length > 0) {
                 if (!most_specific_filter_node || Object.keys(child.filter).length > most_specific_filter_count) {
@@ -189,12 +190,12 @@ export class QueryGraph<T> {
         }
 
         this.graph_stats = {
-            most_specific_filter_node: most_specific_filter_node as QueryNode<T>,
+            most_specific_filter_node: most_specific_filter_node as QueryNode,
             depth_from_root: depth_from_root,
         }
     }
 
-    node_as_join_criteria(node: QueryNode<T>): type_join_criteria {
+    node_as_join_criteria(node: QueryNode): type_join_criteria {
 
         let children: { [key: string]: type_join_criteria } = {};
 
@@ -214,13 +215,13 @@ export class QueryGraph<T> {
 
     }
 
-    build_graph(root: QueryNode<T>) {
+    build_graph(root: QueryNode) {
         let children_obj = root.children_obj;
 
         for (let key in children_obj) {
             let child = children_obj[key];
 
-            let node = new QueryNode<T>(key, { ...child });
+            let node = new QueryNode(key, { ...child });
             node.parent_node = root;
             root.children_list.push(node);
 
@@ -231,12 +232,12 @@ export class QueryGraph<T> {
     }
 
     reroot_from_node_key(new_root_key: string): void {
-        let children_list: QueryNode<T>[] = [...this.root.children_list];
-        let new_root: QueryNode<T> | null = null;
+        let children_list: QueryNode[] = [...this.root.children_list];
+        let new_root: QueryNode | null = null;
 
         let loop_count = 0;
         while (children_list.length > 0 && !new_root) {
-            let child = children_list.shift() as QueryNode<T>;
+            let child = children_list.shift() as QueryNode;
             if (child.name === new_root_key) {
                 new_root = child;
                 break;
@@ -255,7 +256,7 @@ export class QueryGraph<T> {
 
     }
 
-    flip_parent_to_child(node: QueryNode<T>, new_parent_node: QueryNode<T> | undefined): void {
+    flip_parent_to_child(node: QueryNode, new_parent_node: QueryNode | undefined): void {
         let parent_node = node.parent_node;
         if (!parent_node) {
             node.parent_node = new_parent_node;
@@ -292,7 +293,7 @@ export class QueryGraph<T> {
     }
 
 
-    orphan_node(node?: QueryNode<T>): void {
+    orphan_node(node?: QueryNode): void {
 
         if (!node) {
             node = this.root;
@@ -319,16 +320,22 @@ type type_join_criteria = {
     children?: { [key: string]: type_join_criteria };
 }
 
-export const nested_join = <T>(db: type_database, join_criteria: { [key: string]: type_join_criteria }): T | T[] => {
-    let query_graph = new QueryGraph<T>(join_criteria);
+export const nested_join = <T extends object>(db: type_database, join_criteria: { [key: string]: type_join_criteria }): T => {
+    let query_graph = new QueryGraph(join_criteria);
     let original_root_node_name = query_graph.root.name;
     query_graph.reroot_from_most_filtered_node();
-    query_graph.root.join(db);
+    query_graph.root.join<T>(db);
 
     query_graph.reroot_from_node_key(original_root_node_name);
 
-    let results = query_graph.root.join(db);
+    let results = query_graph.root.join<T>(db);
     // query_graph.orphan_node();
 
-    return results;
+    if (Array.isArray(results)) {
+        return results.map<T>(result => decircular(result)) as T;
+    }
+    else {
+        return decircular(results);
+    }
+
 }

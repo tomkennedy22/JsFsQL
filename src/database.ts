@@ -101,7 +101,7 @@ export class database implements type_database {
 
         }
         catch (error) {
-            console.log('Error reading from file', error, this.output_file_path)
+            console.log('Error reading from file', this.output_file_path, error)
         }
 
         return;

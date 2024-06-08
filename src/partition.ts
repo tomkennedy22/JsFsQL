@@ -181,7 +181,7 @@ export class partition<T extends object> implements type_partition {
             return Promise.resolve();
         }
         catch (error) {
-            console.log('Error reading from file', error, output_file_path)
+            console.log('Error reading from file', output_file_path, error)
         }
     }
 

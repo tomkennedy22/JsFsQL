@@ -1,4 +1,4 @@
-# ManyDexJS
+# JsFSQL
 
 This is a light-weight package that allows for in-memory querying of semi-stuctured data, as well as write & reading the data to file. 
 The package's big advantage is the heavily partitioned data structure, which provides the following benefits:
